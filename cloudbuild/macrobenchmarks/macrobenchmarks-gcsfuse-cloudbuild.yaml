@@ -7,6 +7,8 @@ substitutions:
   _MACHINE_TYPE: "c4-standard-192"
   _ENABLE_TIER1_NETWORKING: "true"
   _USE_GCSFUSE: "true"
+  _RESERVATION_AFFINITY: "any"
+  _RESERVATION_NAME: ""
   # 2 nodes x 4 ranks/node = 8-rank world. Ranks/node is capped at 4 (in the
   # workload chart) because a restoring run's per-rank peak RSS ~doubles to
   # ~92GB (resident model+optimizer plus the torch.load'd checkpoint), and
@@ -71,6 +73,8 @@ steps:
       - "_SEED_CHECKPOINT=${_SEED_CHECKPOINT}"
       - "_ENABLE_TIER1_NETWORKING=${_ENABLE_TIER1_NETWORKING}"
       - "_USE_GCSFUSE=${_USE_GCSFUSE}"
+      - "_RESERVATION_AFFINITY=${_RESERVATION_AFFINITY}"
+      - "_RESERVATION_NAME=${_RESERVATION_NAME}"
       - "_SIMULATED_STEP_COMPUTE_SECONDS=${_SIMULATED_STEP_COMPUTE_SECONDS}"
       - "_PER_DEVICE_BATCH=${_PER_DEVICE_BATCH}"
       - "_GRAD_ACCUM=${_GRAD_ACCUM}"
@@ -113,6 +117,8 @@ steps:
       - "_NODES=${_NODES}"
       - "_JOBSET_VERSION=${_JOBSET_VERSION}"
       - "_ENABLE_TIER1_NETWORKING=${_ENABLE_TIER1_NETWORKING}"
+      - "_RESERVATION_AFFINITY=${_RESERVATION_AFFINITY}"
+      - "_RESERVATION_NAME=${_RESERVATION_NAME}"
     args: ["cloudbuild/macrobenchmarks/scripts/create_cluster.sh"]
     waitFor: ["init-variables"]
 

@@ -55,6 +55,12 @@ NODE_POOL_ARGS=(
 if [ "${_ENABLE_TIER1_NETWORKING:-true}" = "true" ]; then
   NODE_POOL_ARGS+=(--network-performance-configs="total-egress-bandwidth-tier=TIER_1")
 fi
+if [ -n "${_RESERVATION_AFFINITY}" ]; then
+  NODE_POOL_ARGS+=(--reservation-affinity="${_RESERVATION_AFFINITY}")
+fi
+if [ -n "${_RESERVATION_NAME}" ]; then
+  NODE_POOL_ARGS+=(--reservation="${_RESERVATION_NAME}")
+fi
 gcloud container node-pools create "${_MACHINE_TYPE}" "${NODE_POOL_ARGS[@]}"
 gcloud container clusters get-credentials "$CLUSTER_NAME" --zone="${_ZONE}" --project="${PROJECT_ID}"
 kubectl apply --server-side -f "https://github.com/kubernetes-sigs/jobset/releases/download/${_JOBSET_VERSION}/manifests.yaml"

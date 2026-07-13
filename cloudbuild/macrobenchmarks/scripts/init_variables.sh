@@ -41,6 +41,16 @@ case "${_USE_GCSFUSE:-false}" in
   true|false) ;;
   *) echo "ERROR: _USE_GCSFUSE must be true|false (got '${_USE_GCSFUSE}')."; exit 1 ;;
 esac
+# Reject an unknown reservation affinity toggle before provisioning anything.
+case "${_RESERVATION_AFFINITY:-any}" in
+  any|specific|none|any-reservation-then-fail|ANY_RESERVATION|SPECIFIC_RESERVATION|NO_RESERVATION) ;;
+  *) echo "ERROR: _RESERVATION_AFFINITY must be any|specific|none|any-reservation-then-fail (got '${_RESERVATION_AFFINITY}')."; exit 1 ;;
+esac
+if [ "${_RESERVATION_AFFINITY}" = "specific" ] || [ "${_RESERVATION_AFFINITY}" = "SPECIFIC_RESERVATION" ]; then
+  if [ -z "${_RESERVATION_NAME}" ]; then
+    echo "ERROR: _RESERVATION_NAME must be specified when _RESERVATION_AFFINITY is 'specific'."; exit 1
+  fi
+fi
 # An external checkpoint, if supplied, takes precedence and the seed step
 # no-ops; note it so a run that set both does not look mis-wired.
 if [ "${_SEED_CHECKPOINT:-true}" = "true" ] && [ -n "${_CHECKPOINT_LOAD_PATH}" ]; then
@@ -119,3 +129,5 @@ echo "export DATASET_BUCKET=${_INFRA_PREFIX}-macrobench-dataset-${SHORT_BUILD_ID
 echo "export RESULTS_BUCKET=${_INFRA_PREFIX}-macrobench-results" >> "${BUILD_VARS_FILE}"
 echo "export REGION=${REGION}" >> "${BUILD_VARS_FILE}"
 echo "export _USE_GCSFUSE=${_USE_GCSFUSE:-false}" >> "${BUILD_VARS_FILE}"
+echo "export _RESERVATION_AFFINITY=${_RESERVATION_AFFINITY:-any}" >> "${BUILD_VARS_FILE}"
+echo "export _RESERVATION_NAME=${_RESERVATION_NAME:-}" >> "${BUILD_VARS_FILE}"
