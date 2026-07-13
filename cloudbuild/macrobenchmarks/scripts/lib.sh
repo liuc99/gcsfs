@@ -47,8 +47,12 @@ create_typed_bucket() {
 }
 
 shared_workload_helm_args() {
+  local dataset_path="${RUN_DATASET_PATH:-${_DATASET_PATH}}"
+  if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
+    dataset_path="/gcs/dataset"
+  fi
   SHARED_HELM_ARGS=(
-    --set gcsfs.datasetPath="${RUN_DATASET_PATH:-${_DATASET_PATH}}"
+    --set gcsfs.datasetPath="${dataset_path}"
     --set workload.modelId="${_MODEL_ID}"
     --set-string workload.image="${_IMAGE}"
     --set workload.hfToken="${_HF_TOKEN}"
@@ -58,6 +62,9 @@ shared_workload_helm_args() {
     --set workload.trainingStrategy="${_TRAINING_STRATEGY}"
     --set "nodeSelector.cloud\.google\.com/gke-nodepool=${_MACHINE_TYPE}"
     --set serviceAccount=default
+    --set gcsfuse.enabled="${_USE_GCSFUSE:-false}"
+    --set gcsfuse.datasetBucket="${DATASET_BUCKET:-}"
+    --set gcsfuse.checkpointBucket="${CHECKPOINT_BUCKET:-}"
   )
 }
 

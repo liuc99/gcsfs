@@ -17,11 +17,20 @@ EFFECTIVE_LOAD_PATH="${_CHECKPOINT_LOAD_PATH}"
 if [ -z "$EFFECTIVE_LOAD_PATH" ] && [ "${_SEED_CHECKPOINT}" = "true" ]; then
   EFFECTIVE_LOAD_PATH="${SEEDED_CKPT_PATH:-}"
 fi
+
+CKPT_WRITE_PATH="gs://$CHECKPOINT_BUCKET/checkpoints"
+if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
+  CKPT_WRITE_PATH="/gcs/checkpoints/checkpoints"
+  if [ -n "$EFFECTIVE_LOAD_PATH" ]; then
+    EFFECTIVE_LOAD_PATH=$(echo "$EFFECTIVE_LOAD_PATH" | sed -E "s#^gs://[^/]+/#/gcs/checkpoints/#")
+  fi
+fi
+
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /workspace/start_time.txt
 shared_workload_helm_args
 helm install "$RUN_ID" "$CHART" -f "$CHART/values_base.yaml" \
   "${SHARED_HELM_ARGS[@]}" \
-  --set gcsfs.ckptWritePath="gs://$CHECKPOINT_BUCKET/checkpoints" \
+  --set gcsfs.ckptWritePath="$CKPT_WRITE_PATH" \
   --set-string gcsfs.ckptLoadPath="${EFFECTIVE_LOAD_PATH}" \
   --set workload.steps="${_STEPS}" \
   --set workload.ckptWriterInterval="${_CHECKPOINT_INTERVAL}" \

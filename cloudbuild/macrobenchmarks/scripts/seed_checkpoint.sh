@@ -28,11 +28,16 @@ CHART="gcsfs/tests/perf/macrobenchmarks/workloads/${_WORKLOAD}/helm_chart"
 # checkpoint is full-size regardless of step count: the frozen ~16 GB model plus
 # eagerly-materialized AdamW state are serialized the same as in a long run.
 # simulatedStepComputeSeconds=0 makes the single step instant.
+SEED_CKPT_WRITE_PATH="$SEED_CKPT_DIR"
+if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
+  SEED_CKPT_WRITE_PATH="/gcs/checkpoints/seed"
+fi
+
 echo "Installing seed release $SEED_RUN_ID to write one checkpoint to $SEED_CKPT_DIR ..."
 shared_workload_helm_args
 helm install "$SEED_RUN_ID" "$CHART" -f "$CHART/values_base.yaml" \
   "${SHARED_HELM_ARGS[@]}" \
-  --set gcsfs.ckptWritePath="$SEED_CKPT_DIR" \
+  --set gcsfs.ckptWritePath="$SEED_CKPT_WRITE_PATH" \
   --set-string gcsfs.ckptLoadPath="" \
   --set workload.steps="1" \
   --set workload.ckptWriterInterval="1" \

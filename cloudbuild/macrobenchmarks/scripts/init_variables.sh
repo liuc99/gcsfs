@@ -36,6 +36,11 @@ case "${_ENABLE_TIER1_NETWORKING:-true}" in
   true|false) ;;
   *) echo "ERROR: _ENABLE_TIER1_NETWORKING must be true|false (got '${_ENABLE_TIER1_NETWORKING}')."; exit 1 ;;
 esac
+# Reject an unknown GCSFuse toggle before provisioning anything.
+case "${_USE_GCSFUSE:-false}" in
+  true|false) ;;
+  *) echo "ERROR: _USE_GCSFUSE must be true|false (got '${_USE_GCSFUSE}')."; exit 1 ;;
+esac
 # An external checkpoint, if supplied, takes precedence and the seed step
 # no-ops; note it so a run that set both does not look mis-wired.
 if [ "${_SEED_CHECKPOINT:-true}" = "true" ] && [ -n "${_CHECKPOINT_LOAD_PATH}" ]; then
@@ -113,3 +118,4 @@ echo "export CHECKPOINT_BUCKET=${_INFRA_PREFIX}-macrobench-checkpoint-${SHORT_BU
 echo "export DATASET_BUCKET=${_INFRA_PREFIX}-macrobench-dataset-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
 echo "export RESULTS_BUCKET=${_INFRA_PREFIX}-macrobench-results" >> "${BUILD_VARS_FILE}"
 echo "export REGION=${REGION}" >> "${BUILD_VARS_FILE}"
+echo "export _USE_GCSFUSE=${_USE_GCSFUSE:-false}" >> "${BUILD_VARS_FILE}"

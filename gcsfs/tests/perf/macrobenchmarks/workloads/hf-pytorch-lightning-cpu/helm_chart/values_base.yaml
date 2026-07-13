@@ -58,3 +58,10 @@ gcsfs:
   datasetPath: ""
   ckptWritePath: ""
   ckptLoadPath: ""
+
+gcsfuse:
+  enabled: false
+  datasetBucket: ""
+  checkpointBucket: ""
+  mountPathDataset: "/gcs/dataset"
+  mountPathCheckpoint: "/gcs/checkpoints"

@@ -30,6 +30,9 @@ spec:
             name: {{ .Release.Name }}
             annotations:
               kubectl.kubernetes.io/default-container: workload
+              {{- if $root.Values.gcsfuse.enabled }}
+              gcsfuse.csi.storage.gke.io/enabled: "true"
+              {{- end }}
           spec:
             serviceAccountName: {{ $root.Values.serviceAccount }}
             subdomain: "{{ .Release.Name }}"
@@ -63,6 +66,20 @@ spec:
               emptyDir:
                 medium: "Memory"
                 sizeLimit: 250Gi
+            {{- if $root.Values.gcsfuse.enabled }}
+            - name: gcsfuse-dataset
+              csi:
+                driver: gcsfuse.csi.storage.gke.io
+                volumeAttributes:
+                  bucketName: "{{ $root.Values.gcsfuse.datasetBucket }}"
+                  mountOptions: "implicit-dirs"
+            - name: gcsfuse-checkpoint
+              csi:
+                driver: gcsfuse.csi.storage.gke.io
+                volumeAttributes:
+                  bucketName: "{{ $root.Values.gcsfuse.checkpointBucket }}"
+                  mountOptions: "implicit-dirs"
+            {{- end }}
             containers:
             - name: workload
               image: "{{ $root.Values.workload.image }}"
@@ -138,3 +155,9 @@ spec:
                   mountPath: /workload/launcher
                 - name: shared-memory
                   mountPath: /dev/shm
+                {{- if $root.Values.gcsfuse.enabled }}
+                - name: gcsfuse-dataset
+                  mountPath: {{ $root.Values.gcsfuse.mountPathDataset }}
+                - name: gcsfuse-checkpoint
+                  mountPath: {{ $root.Values.gcsfuse.mountPathCheckpoint }}
+                {{- end }}
