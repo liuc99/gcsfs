@@ -36,6 +36,7 @@ gcloud container clusters create "$CLUSTER_NAME" \
   --private-ipv6-google-access-type=outbound-only \
   --network="${NETWORK_NAME}" --subnetwork="${SUBNET_NAME}" \
   --addons=GcsFuseCsiDriver \
+  --workload-pool="${PROJECT_ID}.svc.id.goog" \
   --no-enable-autoupgrade --quiet
 NODE_POOL_ARGS=(
   --cluster="$CLUSTER_NAME"
