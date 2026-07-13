@@ -63,5 +63,12 @@ if [ -n "${_RESERVATION_NAME}" ]; then
 fi
 gcloud container node-pools create "${_MACHINE_TYPE}" "${NODE_POOL_ARGS[@]}"
 gcloud container clusters get-credentials "$CLUSTER_NAME" --zone="${_ZONE}" --project="${PROJECT_ID}"
+echo "--- Configuring Workload Identity for default service account ---"
+gcloud iam service-accounts add-iam-policy-binding "${_GKE_SERVICE_ACCOUNT}" \
+  --project="${PROJECT_ID}" \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="serviceAccount:${PROJECT_ID}.svc.id.goog[default/default]" \
+  --quiet || true
+kubectl annotate serviceaccount default "iam.gke.io/gcp-service-account=${_GKE_SERVICE_ACCOUNT}" --overwrite
 kubectl apply --server-side -f "https://github.com/kubernetes-sigs/jobset/releases/download/${_JOBSET_VERSION}/manifests.yaml"
 kubectl rollout status deployment/jobset-controller-manager -n jobset-system --timeout=300s
