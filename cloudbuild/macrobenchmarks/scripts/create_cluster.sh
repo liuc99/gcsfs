@@ -72,3 +72,8 @@ gcloud iam service-accounts add-iam-policy-binding "${_GKE_SERVICE_ACCOUNT}" \
 kubectl annotate serviceaccount default "iam.gke.io/gcp-service-account=${_GKE_SERVICE_ACCOUNT}" --overwrite
 kubectl apply --server-side -f "https://github.com/kubernetes-sigs/jobset/releases/download/${_JOBSET_VERSION}/manifests.yaml"
 kubectl rollout status deployment/jobset-controller-manager -n jobset-system --timeout=300s
+if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
+  echo "--- Waiting for GCSFuse CSI driver sidecar injector and node driver to be ready ---"
+  kubectl rollout status deployment/gke-gcsfuse-sidecar-injector -n kube-system --timeout=300s || true
+  kubectl rollout status daemonset/gke-gcsfuse-node -n kube-system --timeout=300s || true
+fi
