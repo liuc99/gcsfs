@@ -359,9 +359,19 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         # perf_counter's origin is per-process and meaningless outside it. Writes
         # are rank-0 only so this is less load-bearing than the restore path
         # below, but keeps every checkpoint timestamp on one comparable clock.
-        if trainer.global_rank == 0:
+        is_sharded_fsdp = (
+            getattr(getattr(trainer, "strategy", None), "name", "") == "fsdp"
+            and getattr(getattr(trainer, "strategy", None), "_state_dict_type", "") == "sharded"
+        ) or (
+            os.getenv("TRAINING_STRATEGY", "").lower() == "fsdp_sharded"
+        )
+
+        is_writer = (trainer.global_rank == 0) or is_sharded_fsdp
+
+        if is_writer:
             logging.info(
-                "[BENCHMARK] Checkpoint Save (Writer Rank 0) : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
+                "[BENCHMARK] Checkpoint Save (Writer Rank %d) : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
+                trainer.global_rank,
                 trainer.global_rank,
                 trainer.global_step,
                 time.time(),
@@ -386,20 +396,21 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 callback.ckpt_time += duration
 
         size_bytes = None
-        if trainer.global_rank == 0:
+        if is_writer:
             try:
                 size_bytes = self._measure_checkpoint_bytes(filepath)
             except Exception as e:
                 logging.warning("[BENCHMARK] Could not measure checkpoint size: %s", e)
 
-        if trainer.global_rank == 0 and size_bytes is not None and duration > 0:
+        if is_writer and size_bytes is not None and duration > 0:
             size_mb = size_bytes / (1024 * 1024)
             size_gb = size_bytes / (1024 * 1024 * 1024)
             throughput_mb_s = size_mb / duration
             throughput_gb_s = size_gb / duration
             logging.info(
-                "[BENCHMARK] Finished saving checkpoint (Writer Rank 0) to %s in %.2f seconds for global_step %d from rank %d "
+                "[BENCHMARK] Finished saving checkpoint (Writer Rank %d) to %s in %.2f seconds for global_step %d from rank %d "
                 "(Size: %d bytes / %.2f MB / %.2f GB, Throughput: %.2f MB/s / %.2f GB/s)",
+                trainer.global_rank,
                 filepath,
                 duration,
                 trainer.global_step,
