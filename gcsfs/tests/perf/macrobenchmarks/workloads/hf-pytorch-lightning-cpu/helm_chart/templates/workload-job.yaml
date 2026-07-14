@@ -72,13 +72,13 @@ spec:
                 driver: gcsfuse.csi.storage.gke.io
                 volumeAttributes:
                   bucketName: "{{ $root.Values.gcsfuse.datasetBucket }}"
-                  mountOptions: "implicit-dirs"
+                  mountOptions: "{{ $root.Values.gcsfuse.mountOptions }}"
             - name: gcsfuse-checkpoint
               csi:
                 driver: gcsfuse.csi.storage.gke.io
                 volumeAttributes:
                   bucketName: "{{ $root.Values.gcsfuse.checkpointBucket }}"
-                  mountOptions: "implicit-dirs"
+                  mountOptions: "{{ $root.Values.gcsfuse.mountOptions }}"
             {{- end }}
             {{- if $root.Values.lustre.enabled }}
             - name: lustre-dataset

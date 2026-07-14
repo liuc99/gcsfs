@@ -41,6 +41,10 @@ case "${_USE_GCSFUSE:-false}" in
   true|false) ;;
   *) echo "ERROR: _USE_GCSFUSE must be true|false (got '${_USE_GCSFUSE}')."; exit 1 ;;
 esac
+case "${_GCSFUSE_ENABLE_STREAM_WRITE:-false}" in
+  true|false) ;;
+  *) echo "ERROR: _GCSFUSE_ENABLE_STREAM_WRITE must be true|false (got '${_GCSFUSE_ENABLE_STREAM_WRITE}')."; exit 1 ;;
+esac
 # Reject an unknown Lustre toggle before provisioning anything.
 case "${_USE_LUSTRE:-false}" in
   true|false) ;;

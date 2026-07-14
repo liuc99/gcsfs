@@ -65,6 +65,7 @@ gcsfuse:
   checkpointBucket: ""
   mountPathDataset: "/gcs/dataset"
   mountPathCheckpoint: "/gcs/checkpoints"
+  mountOptions: "implicit-dirs"
 
 lustre:
   enabled: false
