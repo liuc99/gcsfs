@@ -7,6 +7,7 @@ substitutions:
   _MACHINE_TYPE: "c4-standard-192"
   _ENABLE_TIER1_NETWORKING: "true"
   _USE_GCSFUSE: "true"
+  _GCSFUSE_ENABLE_STREAM_WRITE: "true"
   _GCSFUSE_MOUNT_OPTIONS: "implicit-dirs"
   _REUSE_DATASET_BUCKET: "false"
   _RESERVATION_AFFINITY: "any"
@@ -75,6 +76,7 @@ steps:
       - "_SEED_CHECKPOINT=${_SEED_CHECKPOINT}"
       - "_ENABLE_TIER1_NETWORKING=${_ENABLE_TIER1_NETWORKING}"
       - "_USE_GCSFUSE=${_USE_GCSFUSE}"
+      - "_GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE}"
       - "_GCSFUSE_MOUNT_OPTIONS=${_GCSFUSE_MOUNT_OPTIONS}"
       - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
       - "_RESERVATION_AFFINITY=${_RESERVATION_AFFINITY}"
@@ -146,6 +148,7 @@ steps:
       - "_REQUIREMENTS=${_REQUIREMENTS}"
       - "_SEED_CHECKPOINT=${_SEED_CHECKPOINT}"
       - "_CHECKPOINT_LOAD_PATH=${_CHECKPOINT_LOAD_PATH}"
+      - "_GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE}"
       - "_GCSFUSE_MOUNT_OPTIONS=${_GCSFUSE_MOUNT_OPTIONS}"
     args: ["cloudbuild/macrobenchmarks/scripts/seed_checkpoint.sh"]
     waitFor: ["create-cluster", "create-buckets"]
@@ -176,6 +179,7 @@ steps:
       - "_PER_DEVICE_BATCH=${_PER_DEVICE_BATCH}"
       - "_GRAD_ACCUM=${_GRAD_ACCUM}"
       - "_DATALOADER_WORKERS=${_DATALOADER_WORKERS}"
+      - "_GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE}"
       - "_GCSFUSE_MOUNT_OPTIONS=${_GCSFUSE_MOUNT_OPTIONS}"
     args: ["cloudbuild/macrobenchmarks/scripts/run_workload.sh"]
     waitFor: ["seed-checkpoint"]

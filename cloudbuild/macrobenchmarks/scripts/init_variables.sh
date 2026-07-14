@@ -41,6 +41,10 @@ case "${_USE_GCSFUSE:-false}" in
   true|false) ;;
   *) echo "ERROR: _USE_GCSFUSE must be true|false (got '${_USE_GCSFUSE}')."; exit 1 ;;
 esac
+case "${_GCSFUSE_ENABLE_STREAM_WRITE:-true}" in
+  true|false) ;;
+  *) echo "ERROR: _GCSFUSE_ENABLE_STREAM_WRITE must be true|false (got '${_GCSFUSE_ENABLE_STREAM_WRITE}')."; exit 1 ;;
+esac
 case "${_REUSE_DATASET_BUCKET:-false}" in
   true|false) ;;
   *) echo "ERROR: _REUSE_DATASET_BUCKET must be true|false (got '${_REUSE_DATASET_BUCKET}')."; exit 1 ;;
@@ -152,5 +156,6 @@ echo "export _REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET:-false}" >> "${BUILD_
 echo "export RESULTS_BUCKET=${_INFRA_PREFIX}-macrobench-results" >> "${BUILD_VARS_FILE}"
 echo "export REGION=${REGION}" >> "${BUILD_VARS_FILE}"
 echo "export _USE_GCSFUSE=${_USE_GCSFUSE:-false}" >> "${BUILD_VARS_FILE}"
+echo "export _GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE:-true}" >> "${BUILD_VARS_FILE}"
 echo "export _RESERVATION_AFFINITY=${_RESERVATION_AFFINITY:-any}" >> "${BUILD_VARS_FILE}"
 echo "export _RESERVATION_NAME=${_RESERVATION_NAME:-}" >> "${BUILD_VARS_FILE}"
