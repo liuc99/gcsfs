@@ -11,6 +11,7 @@ substitutions:
   _LUSTRE_DATASET_PVC: "lustre-dataset-pvc"
   _LUSTRE_CHECKPOINT_PVC: "lustre-checkpoint-pvc"
   _LUSTRE_CAPACITY: "12000Gi"
+  _REUSE_DATASET_BUCKET: "false"
   _RESERVATION_AFFINITY: "any"
   _RESERVATION_NAME: ""
   _NODES: "2"
@@ -69,6 +70,7 @@ steps:
       - "_PER_DEVICE_BATCH=${_PER_DEVICE_BATCH}"
       - "_GRAD_ACCUM=${_GRAD_ACCUM}"
       - "_DATALOADER_WORKERS=${_DATALOADER_WORKERS}"
+      - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
     args: ["cloudbuild/macrobenchmarks/scripts/init_variables.sh"]
     waitFor: ["-"]
 
@@ -92,6 +94,7 @@ steps:
       - "_BUCKET_TYPE=${_BUCKET_TYPE}"
       - "_ZONE=${_ZONE}"
       - "_DATASET_PATH=${_DATASET_PATH}"
+      - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
     args: ["cloudbuild/macrobenchmarks/scripts/create_buckets.sh"]
     waitFor: ["init-variables"]
 
@@ -230,6 +233,7 @@ steps:
     env:
       - "PROJECT_ID=${PROJECT_ID}"
       - "_SKIP_CLEANUP=${_SKIP_CLEANUP}"
+      - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
     args: ["cloudbuild/macrobenchmarks/scripts/delete_buckets.sh"]
     waitFor: ["scrape-metrics"]
 

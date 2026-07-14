@@ -6,6 +6,7 @@ substitutions:
   _BUCKET_TYPE: "regional"
   _MACHINE_TYPE: "c4-standard-192"
   _ENABLE_TIER1_NETWORKING: "true"
+  _REUSE_DATASET_BUCKET: "false"
   _RESERVATION_AFFINITY: "any"
   _RESERVATION_NAME: ""
   # 2 nodes x 4 ranks/node = 8-rank world. Ranks/node is capped at 4 (in the
@@ -71,6 +72,7 @@ steps:
       - "_TRAINING_STRATEGY=${_TRAINING_STRATEGY}"
       - "_SEED_CHECKPOINT=${_SEED_CHECKPOINT}"
       - "_ENABLE_TIER1_NETWORKING=${_ENABLE_TIER1_NETWORKING}"
+      - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
       - "_RESERVATION_AFFINITY=${_RESERVATION_AFFINITY}"
       - "_RESERVATION_NAME=${_RESERVATION_NAME}"
       - "_SIMULATED_STEP_COMPUTE_SECONDS=${_SIMULATED_STEP_COMPUTE_SECONDS}"
@@ -100,6 +102,7 @@ steps:
       - "_BUCKET_TYPE=${_BUCKET_TYPE}"
       - "_ZONE=${_ZONE}"
       - "_DATASET_PATH=${_DATASET_PATH}"
+      - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
     args: ["cloudbuild/macrobenchmarks/scripts/create_buckets.sh"]
     waitFor: ["init-variables"]
 
@@ -226,6 +229,7 @@ steps:
     env:
       - "PROJECT_ID=${PROJECT_ID}"
       - "_SKIP_CLEANUP=${_SKIP_CLEANUP}"
+      - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
     args: ["cloudbuild/macrobenchmarks/scripts/delete_buckets.sh"]
     waitFor: ["scrape-metrics"]
 

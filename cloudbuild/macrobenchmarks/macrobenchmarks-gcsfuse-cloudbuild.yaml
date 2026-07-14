@@ -9,6 +9,7 @@ substitutions:
   _USE_GCSFUSE: "true"
   _GCSFUSE_ENABLE_STREAM_WRITE: "false"
   _GCSFUSE_MOUNT_OPTIONS: "implicit-dirs"
+  _REUSE_DATASET_BUCKET: "false"
   _RESERVATION_AFFINITY: "any"
   _RESERVATION_NAME: ""
   # 2 nodes x 4 ranks/node = 8-rank world. Ranks/node is capped at 4 (in the
@@ -77,6 +78,7 @@ steps:
       - "_USE_GCSFUSE=${_USE_GCSFUSE}"
       - "_GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE}"
       - "_GCSFUSE_MOUNT_OPTIONS=${_GCSFUSE_MOUNT_OPTIONS}"
+      - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
       - "_RESERVATION_AFFINITY=${_RESERVATION_AFFINITY}"
       - "_RESERVATION_NAME=${_RESERVATION_NAME}"
       - "_SIMULATED_STEP_COMPUTE_SECONDS=${_SIMULATED_STEP_COMPUTE_SECONDS}"
@@ -106,6 +108,7 @@ steps:
       - "_BUCKET_TYPE=${_BUCKET_TYPE}"
       - "_ZONE=${_ZONE}"
       - "_DATASET_PATH=${_DATASET_PATH}"
+      - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
     args: ["cloudbuild/macrobenchmarks/scripts/create_buckets.sh"]
     waitFor: ["init-variables"]
 
@@ -236,6 +239,7 @@ steps:
     env:
       - "PROJECT_ID=${PROJECT_ID}"
       - "_SKIP_CLEANUP=${_SKIP_CLEANUP}"
+      - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
     args: ["cloudbuild/macrobenchmarks/scripts/delete_buckets.sh"]
     waitFor: ["scrape-metrics"]
 

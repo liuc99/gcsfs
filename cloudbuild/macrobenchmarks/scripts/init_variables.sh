@@ -45,6 +45,10 @@ case "${_GCSFUSE_ENABLE_STREAM_WRITE:-false}" in
   true|false) ;;
   *) echo "ERROR: _GCSFUSE_ENABLE_STREAM_WRITE must be true|false (got '${_GCSFUSE_ENABLE_STREAM_WRITE}')."; exit 1 ;;
 esac
+case "${_REUSE_DATASET_BUCKET:-false}" in
+  true|false) ;;
+  *) echo "ERROR: _REUSE_DATASET_BUCKET must be true|false (got '${_REUSE_DATASET_BUCKET}')."; exit 1 ;;
+esac
 # Reject an unknown Lustre toggle before provisioning anything.
 case "${_USE_LUSTRE:-false}" in
   true|false) ;;
@@ -142,7 +146,13 @@ echo "export CLUSTER_NAME=${_INFRA_PREFIX}-gke-${SHORT_BUILD_ID}" >> "${BUILD_VA
 echo "export NETWORK_NAME=${_INFRA_PREFIX}-net-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
 echo "export SUBNET_NAME=${_INFRA_PREFIX}-subnet-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
 echo "export CHECKPOINT_BUCKET=${_INFRA_PREFIX}-macrobench-checkpoint-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
-echo "export DATASET_BUCKET=${_INFRA_PREFIX}-macrobench-dataset-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
+if [ "${_REUSE_DATASET_BUCKET:-false}" = "true" ]; then
+  SRC_DATASET_BUCKET=$(echo "${_DATASET_PATH}" | sed -E 's#^gs://([^/]+).*#\1#')
+  echo "export DATASET_BUCKET=${SRC_DATASET_BUCKET}" >> "${BUILD_VARS_FILE}"
+else
+  echo "export DATASET_BUCKET=${_INFRA_PREFIX}-macrobench-dataset-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
+fi
+echo "export _REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET:-false}" >> "${BUILD_VARS_FILE}"
 echo "export RESULTS_BUCKET=${_INFRA_PREFIX}-macrobench-results" >> "${BUILD_VARS_FILE}"
 echo "export REGION=${REGION}" >> "${BUILD_VARS_FILE}"
 echo "export _USE_GCSFUSE=${_USE_GCSFUSE:-false}" >> "${BUILD_VARS_FILE}"

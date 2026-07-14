@@ -8,4 +8,8 @@ fi
 source "$(dirname "$0")/lib.sh"
 source "${BUILD_VARS_FILE}"
 gcloud storage rm --recursive --project="${PROJECT_ID}" gs://$CHECKPOINT_BUCKET || true
-gcloud storage rm --recursive --project="${PROJECT_ID}" gs://$DATASET_BUCKET || true
+if [ "${_REUSE_DATASET_BUCKET:-false}" != "true" ]; then
+  gcloud storage rm --recursive --project="${PROJECT_ID}" gs://$DATASET_BUCKET || true
+else
+  echo "Skipping deletion of reused dataset bucket gs://$DATASET_BUCKET."
+fi

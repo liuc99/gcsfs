@@ -9,29 +9,34 @@ skip_if_failed
 source "${BUILD_VARS_FILE}"
 create_typed_bucket "$CHECKPOINT_BUCKET"
 
-# Per-run dataset bucket (same config as CHECKPOINT_BUCKET), populated by an
-# in-region copy, so its egress is attributable to one run for the dataset
-# read-amplification metric.
-create_typed_bucket "$DATASET_BUCKET"
-SRC_OBJECT_PATH=$(echo "${_DATASET_PATH}" | sed -E 's#^gs://[^/]+/?##')
-if [ "${_BUCKET_TYPE}" = "zonal" ] || [ "${DATASET_SRC_IS_RAPID:-no}" = "yes" ]; then
-  # RAPID (zonal) objects lack the server-side rewrite rsync uses, so daisy-chain
-  # (download+reupload)
-  ulimit -n 65536
-  DEST_PARENT="${SRC_OBJECT_PATH%/*}"
-  [ "$DEST_PARENT" = "$SRC_OBJECT_PATH" ] && DEST_PARENT=""
-  # `cp --recursive` on a directory/bucket source without a trailing wildcard
-  # copies the source's own name into the destination (e.g. _DATASET_PATH
-  # "gs://bucket" would land at "gs://DATASET_BUCKET/bucket/..."); "/*" makes
-  # it copy the source's contents instead.
-  CLOUDSDK_STORAGE_PROCESS_COUNT=16 CLOUDSDK_STORAGE_THREAD_COUNT=16 \
-  CLOUDSDK_STORAGE_ATTEMPT_GRPC_DIRECT_PATH=False \
-    gcloud storage cp --recursive --daisy-chain "${_DATASET_PATH%/}/*" "gs://${DATASET_BUCKET}${DEST_PARENT:+/$DEST_PARENT}"
+if [ "${_REUSE_DATASET_BUCKET:-false}" = "true" ]; then
+  echo "--- Reusing existing dataset bucket for ${_DATASET_PATH} (skipping bucket creation and copy) ---"
+  echo "export RUN_DATASET_PATH=${_DATASET_PATH}" >> "${BUILD_VARS_FILE}"
 else
-  # Regional/HNS support server-side copy; rsync mirrors the source into the dest.
-  gcloud storage rsync --recursive "${_DATASET_PATH}" "gs://${DATASET_BUCKET}/${SRC_OBJECT_PATH}"
+  # Per-run dataset bucket (same config as CHECKPOINT_BUCKET), populated by an
+  # in-region copy, so its egress is attributable to one run for the dataset
+  # read-amplification metric.
+  create_typed_bucket "$DATASET_BUCKET"
+  SRC_OBJECT_PATH=$(echo "${_DATASET_PATH}" | sed -E 's#^gs://[^/]+/?##')
+  if [ "${_BUCKET_TYPE}" = "zonal" ] || [ "${DATASET_SRC_IS_RAPID:-no}" = "yes" ]; then
+    # RAPID (zonal) objects lack the server-side rewrite rsync uses, so daisy-chain
+    # (download+reupload)
+    ulimit -n 65536
+    DEST_PARENT="${SRC_OBJECT_PATH%/*}"
+    [ "$DEST_PARENT" = "$SRC_OBJECT_PATH" ] && DEST_PARENT=""
+    # `cp --recursive` on a directory/bucket source without a trailing wildcard
+    # copies the source's own name into the destination (e.g. _DATASET_PATH
+    # "gs://bucket" would land at "gs://DATASET_BUCKET/bucket/..."); "/*" makes
+    # it copy the source's contents instead.
+    CLOUDSDK_STORAGE_PROCESS_COUNT=16 CLOUDSDK_STORAGE_THREAD_COUNT=16 \
+    CLOUDSDK_STORAGE_ATTEMPT_GRPC_DIRECT_PATH=False \
+      gcloud storage cp --recursive --daisy-chain "${_DATASET_PATH%/}/*" "gs://${DATASET_BUCKET}${DEST_PARENT:+/$DEST_PARENT}"
+  else
+    # Regional/HNS support server-side copy; rsync mirrors the source into the dest.
+    gcloud storage rsync --recursive "${_DATASET_PATH}" "gs://${DATASET_BUCKET}/${SRC_OBJECT_PATH}"
+  fi
+  echo "export RUN_DATASET_PATH=gs://${DATASET_BUCKET}/${SRC_OBJECT_PATH}" >> "${BUILD_VARS_FILE}"
 fi
-echo "export RUN_DATASET_PATH=gs://${DATASET_BUCKET}/${SRC_OBJECT_PATH}" >> "${BUILD_VARS_FILE}"
 if gcloud storage buckets describe gs://$RESULTS_BUCKET --project=${PROJECT_ID} >/dev/null 2>&1; then
   # Reuse only if co-located with this build's LOCATION. The ingestion pipeline
   # builds the BigQuery dataset (and external table) in LOCATION; a results

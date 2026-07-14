@@ -49,7 +49,17 @@ create_typed_bucket() {
 shared_workload_helm_args() {
   local dataset_path="${RUN_DATASET_PATH:-${_DATASET_PATH}}"
   if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
-    dataset_path="/gcs/dataset"
+    if [ "${_REUSE_DATASET_BUCKET:-false}" = "true" ]; then
+      SRC_OBJECT_PATH=$(echo "${_DATASET_PATH}" | sed -E 's#^gs://[^/]+/?##')
+      SRC_OBJECT_PATH="${SRC_OBJECT_PATH%/}"
+      if [ -n "${SRC_OBJECT_PATH}" ]; then
+        dataset_path="/gcs/dataset/${SRC_OBJECT_PATH}"
+      else
+        dataset_path="/gcs/dataset"
+      fi
+    else
+      dataset_path="/gcs/dataset"
+    fi
   elif [ "${_USE_LUSTRE:-false}" = "true" ]; then
     dataset_path="/lustre/dataset"
   fi
