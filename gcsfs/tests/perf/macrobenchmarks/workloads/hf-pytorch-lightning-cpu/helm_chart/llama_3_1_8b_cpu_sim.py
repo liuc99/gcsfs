@@ -406,29 +406,50 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         def _do_save():
             save_start = time.perf_counter()
             stop_progress_event = threading.Event()
+            upload_start_t = [None]
+            last_sample_t = [save_start]
+            last_bytes = [0]
 
             def _progress_ticker():
                 interval = float(os.getenv("CHECKPOINT_PROGRESS_INTERVAL_SECONDS", "5.0"))
-                start_t = time.perf_counter()
                 while not stop_progress_event.wait(interval):
-                    elapsed = time.perf_counter() - start_t
+                    now_t = time.perf_counter()
+                    total_elapsed = now_t - save_start
                     if is_writer:
                         try:
                             curr_bytes = self._measure_checkpoint_bytes(filepath)
                             curr_mb = curr_bytes / (1024 * 1024)
                             curr_gb = curr_bytes / (1024 * 1024 * 1024)
-                            curr_rate = curr_mb / elapsed if elapsed > 0 else 0
-                            status = "Uploading/Writing" if curr_bytes > 0 else "In-Memory Serialization (CPU pickling state_dict)"
+
+                            if curr_bytes > 0 and upload_start_t[0] is None:
+                                upload_start_t[0] = now_t
+
+                            if upload_start_t[0] is not None:
+                                upload_elapsed = max(0.001, now_t - upload_start_t[0])
+                                pure_rate_mb_s = curr_mb / upload_elapsed
+                                status = f"Uploading/Writing (Upload Time: {upload_elapsed:.1f}s)"
+                            else:
+                                pure_rate_mb_s = 0.0
+                                status = "In-Memory Serialization (CPU pickling state_dict)"
+
+                            dt = max(0.001, now_t - last_sample_t[0])
+                            d_bytes = max(0, curr_bytes - last_bytes[0])
+                            instant_rate_mb_s = (d_bytes / (1024 * 1024)) / dt
+
+                            last_sample_t[0] = now_t
+                            last_bytes[0] = curr_bytes
+
                             logging.info(
-                                "[BENCHMARK] Checkpoint Upload Progress : Rank : %d : Step : %d : Elapsed : %.1fs : Status : %s : Size : %d bytes (%.2f MB / %.2f GB) : Rate : %.2f MB/s : Path : %s",
+                                "[BENCHMARK] Checkpoint Upload Progress : Rank : %d : Step : %d : Total Elapsed : %.1fs : Status : %s : Size : %d bytes (%.2f MB / %.2f GB) : Instant Rate : %.2f MB/s : Upload Rate : %.2f MB/s : Path : %s",
                                 trainer.global_rank,
                                 trainer.global_step,
-                                elapsed,
+                                total_elapsed,
                                 status,
                                 curr_bytes,
                                 curr_mb,
                                 curr_gb,
-                                curr_rate,
+                                instant_rate_mb_s,
+                                pure_rate_mb_s,
                                 filepath,
                             )
                         except Exception:
@@ -446,7 +467,9 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 if ticker_thread is not None:
                     ticker_thread.join(timeout=1.0)
 
-            duration = time.perf_counter() - save_start
+            total_duration = time.perf_counter() - save_start
+            finish_t = time.perf_counter()
+            upload_duration = (finish_t - upload_start_t[0]) if upload_start_t[0] is not None else total_duration
 
             size_bytes = None
             if is_writer:
@@ -455,24 +478,32 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 except Exception as e:
                     logging.warning("[BENCHMARK] Could not measure checkpoint size: %s", e)
 
-            if is_writer and size_bytes is not None and duration > 0:
+            if is_writer and size_bytes is not None and total_duration > 0:
                 size_mb = size_bytes / (1024 * 1024)
                 size_gb = size_bytes / (1024 * 1024 * 1024)
-                throughput_mb_s = size_mb / duration
-                throughput_gb_s = size_gb / duration
+
+                overall_mb_s = size_mb / total_duration
+                overall_gb_s = size_gb / total_duration
+
+                upload_mb_s = size_mb / upload_duration if upload_duration > 0 else overall_mb_s
+                upload_gb_s = size_gb / upload_duration if upload_duration > 0 else overall_gb_s
+
                 logging.info(
-                    "[BENCHMARK] Finished saving checkpoint (Writer Rank %d) to %s in %.2f seconds for global_step %d from rank %d "
-                    "(Size: %d bytes / %.2f MB / %.2f GB, Throughput: %.2f MB/s / %.2f GB/s)",
+                    "[BENCHMARK] Finished saving checkpoint (Writer Rank %d) to %s in %.2f seconds (Upload Time: %.2f seconds) for global_step %d from rank %d "
+                    "(Size: %d bytes / %.2f MB / %.2f GB, Network Upload Throughput: %.2f MB/s / %.2f GB/s, Overall Throughput: %.2f MB/s / %.2f GB/s)",
                     trainer.global_rank,
                     filepath,
-                    duration,
+                    total_duration,
+                    upload_duration,
                     trainer.global_step,
                     trainer.global_rank,
                     size_bytes,
                     size_mb,
                     size_gb,
-                    throughput_mb_s,
-                    throughput_gb_s,
+                    upload_mb_s,
+                    upload_gb_s,
+                    overall_mb_s,
+                    overall_gb_s,
                 )
                 logging.info(
                     "[BENCHMARK] Checkpoint Size : Rank : %d : Step : %d : Bytes : %d : Path: %s",
@@ -486,7 +517,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     "[BENCHMARK] Finished saving checkpoint (Non-Writing Rank %d - skipped data upload) to %s in %.2f seconds for global_step %d from rank %d",
                     trainer.global_rank,
                     filepath,
-                    duration,
+                    total_duration,
                     trainer.global_step,
                     trainer.global_rank,
                 )

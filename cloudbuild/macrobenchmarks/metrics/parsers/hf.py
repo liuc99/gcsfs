@@ -24,8 +24,8 @@ CHECKPOINT_START_PATTERN = (
     r"Start time: ([0-9.]+) seconds: Path: (.*)"
 )
 CHECKPOINT_END_PATTERN = (
-    r"(?:\[BENCHMARK\]\s+)?Finished saving checkpoint(?:\s*\([^)]+\))?\s+to (.*) in ([0-9.]+) seconds for "
-    r"global_step ([0-9]+)\s+from rank ([0-9]+)"
+    r"(?:\[BENCHMARK\]\s+)?Finished saving checkpoint(?:\s*\([^)]+\))?\s+to (.*) in ([0-9.]+) seconds "
+    r"(?:\(Upload Time: [0-9.]+ seconds\)\s+)?for global_step ([0-9]+)\s+from rank ([0-9]+)"
 )
 CHECKPOINT_RESTORE_START_PATTERN = (
     r"(?:\[BENCHMARK\]\s+)?Checkpoint Restore Start : Rank : ([0-9]+) : "
