@@ -20,11 +20,11 @@ STEP_METRICS_PATTERN = (
     r"Step Time: ([0-9.]+)s \| Throughput: ([0-9.]+) samples/s"
 )
 CHECKPOINT_START_PATTERN = (
-    r"(?:\[BENCHMARK\]\s+)?Checkpoint Save : Rank: ([0-9]+) : Step: ([0-9]+) : "
+    r"(?:\[BENCHMARK\]\s+)?Checkpoint Save(?:\s*\([^)]+\))?\s*: Rank: ([0-9]+) : Step: ([0-9]+) : "
     r"Start time: ([0-9.]+) seconds: Path: (.*)"
 )
 CHECKPOINT_END_PATTERN = (
-    r"(?:\[BENCHMARK\]\s+)?Finished saving checkpoint to (.*) in ([0-9.]+) seconds for "
+    r"(?:\[BENCHMARK\]\s+)?Finished saving checkpoint(?:\s*\([^)]+\))?\s+to (.*) in ([0-9.]+) seconds for "
     r"global_step ([0-9]+)\s+from rank ([0-9]+)"
 )
 CHECKPOINT_RESTORE_START_PATTERN = (

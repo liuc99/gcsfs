@@ -359,13 +359,23 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         # perf_counter's origin is per-process and meaningless outside it. Writes
         # are rank-0 only so this is less load-bearing than the restore path
         # below, but keeps every checkpoint timestamp on one comparable clock.
-        logging.info(
-            "[BENCHMARK] Checkpoint Save : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
-            trainer.global_rank,
-            trainer.global_step,
-            time.time(),
-            filepath,
-        )
+        if trainer.global_rank == 0:
+            logging.info(
+                "[BENCHMARK] Checkpoint Save (Writer Rank 0) : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
+                trainer.global_rank,
+                trainer.global_step,
+                time.time(),
+                filepath,
+            )
+        else:
+            logging.info(
+                "[BENCHMARK] Checkpoint Save (Non-Writing Rank %d - skipped data upload) : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
+                trainer.global_rank,
+                trainer.global_rank,
+                trainer.global_step,
+                time.time(),
+                filepath,
+            )
         start_time = time.perf_counter()
         super()._save_checkpoint(trainer, filepath)
         duration = time.perf_counter() - start_time
@@ -382,13 +392,13 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             except Exception as e:
                 logging.warning("[BENCHMARK] Could not measure checkpoint size: %s", e)
 
-        if size_bytes is not None and duration > 0:
+        if trainer.global_rank == 0 and size_bytes is not None and duration > 0:
             size_mb = size_bytes / (1024 * 1024)
             size_gb = size_bytes / (1024 * 1024 * 1024)
             throughput_mb_s = size_mb / duration
             throughput_gb_s = size_gb / duration
             logging.info(
-                "[BENCHMARK] Finished saving checkpoint to %s in %.2f seconds for global_step %d from rank %d "
+                "[BENCHMARK] Finished saving checkpoint (Writer Rank 0) to %s in %.2f seconds for global_step %d from rank %d "
                 "(Size: %d bytes / %.2f MB / %.2f GB, Throughput: %.2f MB/s / %.2f GB/s)",
                 filepath,
                 duration,
@@ -409,7 +419,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             )
         else:
             logging.info(
-                "[BENCHMARK] Finished saving checkpoint to %s in %.2f seconds for global_step %d from rank %d",
+                "[BENCHMARK] Finished saving checkpoint (Non-Writing Rank %d - skipped data upload) to %s in %.2f seconds for global_step %d from rank %d",
+                trainer.global_rank,
                 filepath,
                 duration,
                 trainer.global_step,
