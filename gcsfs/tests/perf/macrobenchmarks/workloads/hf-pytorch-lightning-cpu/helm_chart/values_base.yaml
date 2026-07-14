@@ -28,6 +28,7 @@ workload:
   hfToken:
   ckptWriterInterval: 25
   ckptToKeep: 1
+  asyncCheckpoint: "false"
   # Per-rank micro-batch, optimizer-step gradient accumulation, and dataloader
   # workers. gradAccum is 1 to match the launcher's effective value;
   # global_batch_size = perDeviceBatch * gradAccum * nodes * ranksPerNode.

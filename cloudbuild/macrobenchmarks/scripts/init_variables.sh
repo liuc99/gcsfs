@@ -49,6 +49,10 @@ case "${_REUSE_DATASET_BUCKET:-false}" in
   true|false) ;;
   *) echo "ERROR: _REUSE_DATASET_BUCKET must be true|false (got '${_REUSE_DATASET_BUCKET}')."; exit 1 ;;
 esac
+case "${_ASYNC_CHECKPOINT:-false}" in
+  true|false) ;;
+  *) echo "ERROR: _ASYNC_CHECKPOINT must be true|false (got '${_ASYNC_CHECKPOINT}')."; exit 1 ;;
+esac
 # Reject an unknown Lustre toggle before provisioning anything.
 case "${_USE_LUSTRE:-false}" in
   true|false) ;;
@@ -157,5 +161,6 @@ echo "export RESULTS_BUCKET=${_INFRA_PREFIX}-macrobench-results" >> "${BUILD_VAR
 echo "export REGION=${REGION}" >> "${BUILD_VARS_FILE}"
 echo "export _USE_GCSFUSE=${_USE_GCSFUSE:-false}" >> "${BUILD_VARS_FILE}"
 echo "export _GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE:-true}" >> "${BUILD_VARS_FILE}"
+echo "export _ASYNC_CHECKPOINT=${_ASYNC_CHECKPOINT:-false}" >> "${BUILD_VARS_FILE}"
 echo "export _RESERVATION_AFFINITY=${_RESERVATION_AFFINITY:-any}" >> "${BUILD_VARS_FILE}"
 echo "export _RESERVATION_NAME=${_RESERVATION_NAME:-}" >> "${BUILD_VARS_FILE}"

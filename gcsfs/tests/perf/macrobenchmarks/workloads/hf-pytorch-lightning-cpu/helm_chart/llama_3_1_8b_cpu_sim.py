@@ -36,6 +36,7 @@ import logging
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import torch.multiprocessing
 
@@ -353,6 +354,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
     headline IO event we want to time.
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.async_checkpoint = os.getenv("ASYNC_CHECKPOINT", "false").lower() == "true"
+        self._executor = ThreadPoolExecutor(max_workers=2) if self.async_checkpoint else None
+
+    def teardown(self, trainer, pl_module, stage=None):
+        if self._executor is not None:
+            self._executor.shutdown(wait=True)
+        super().teardown(trainer, pl_module, stage)
+
     def _save_checkpoint(self, trainer, filepath):
         # Log wall-clock time.time() (not perf_counter) for the "Start time"
         # absolute timestamp the metrics parser pairs across log lines:
@@ -368,13 +379,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
         is_writer = (trainer.global_rank == 0) or is_sharded_fsdp
 
+        start_time_wall = time.time()
+        start_time_perf = time.perf_counter()
+
         if is_writer:
             logging.info(
                 "[BENCHMARK] Checkpoint Save (Writer Rank %d) : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
                 trainer.global_rank,
                 trainer.global_rank,
                 trainer.global_step,
-                time.time(),
+                start_time_wall,
                 filepath,
             )
         else:
@@ -383,60 +397,70 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 trainer.global_rank,
                 trainer.global_rank,
                 trainer.global_step,
-                time.time(),
+                start_time_wall,
                 filepath,
             )
-        start_time = time.perf_counter()
-        super()._save_checkpoint(trainer, filepath)
-        duration = time.perf_counter() - start_time
 
-        # Accumulate checkpointing time to be excluded from step time
-        for callback in trainer.callbacks:
-            if isinstance(callback, StepTimeCallback):
-                callback.ckpt_time += duration
+        def _do_save():
+            save_start = time.perf_counter()
+            super(LoggedModelCheckpoint, self)._save_checkpoint(trainer, filepath)
+            duration = time.perf_counter() - save_start
 
-        size_bytes = None
-        if is_writer:
-            try:
-                size_bytes = self._measure_checkpoint_bytes(filepath)
-            except Exception as e:
-                logging.warning("[BENCHMARK] Could not measure checkpoint size: %s", e)
+            size_bytes = None
+            if is_writer:
+                try:
+                    size_bytes = self._measure_checkpoint_bytes(filepath)
+                except Exception as e:
+                    logging.warning("[BENCHMARK] Could not measure checkpoint size: %s", e)
 
-        if is_writer and size_bytes is not None and duration > 0:
-            size_mb = size_bytes / (1024 * 1024)
-            size_gb = size_bytes / (1024 * 1024 * 1024)
-            throughput_mb_s = size_mb / duration
-            throughput_gb_s = size_gb / duration
+            if is_writer and size_bytes is not None and duration > 0:
+                size_mb = size_bytes / (1024 * 1024)
+                size_gb = size_bytes / (1024 * 1024 * 1024)
+                throughput_mb_s = size_mb / duration
+                throughput_gb_s = size_gb / duration
+                logging.info(
+                    "[BENCHMARK] Finished saving checkpoint (Writer Rank %d) to %s in %.2f seconds for global_step %d from rank %d "
+                    "(Size: %d bytes / %.2f MB / %.2f GB, Throughput: %.2f MB/s / %.2f GB/s)",
+                    trainer.global_rank,
+                    filepath,
+                    duration,
+                    trainer.global_step,
+                    trainer.global_rank,
+                    size_bytes,
+                    size_mb,
+                    size_gb,
+                    throughput_mb_s,
+                    throughput_gb_s,
+                )
+                logging.info(
+                    "[BENCHMARK] Checkpoint Size : Rank : %d : Step : %d : Bytes : %d : Path: %s",
+                    trainer.global_rank,
+                    trainer.global_step,
+                    size_bytes,
+                    filepath,
+                )
+            else:
+                logging.info(
+                    "[BENCHMARK] Finished saving checkpoint (Non-Writing Rank %d - skipped data upload) to %s in %.2f seconds for global_step %d from rank %d",
+                    trainer.global_rank,
+                    filepath,
+                    duration,
+                    trainer.global_step,
+                    trainer.global_rank,
+                )
+
+        if self.async_checkpoint:
             logging.info(
-                "[BENCHMARK] Finished saving checkpoint (Writer Rank %d) to %s in %.2f seconds for global_step %d from rank %d "
-                "(Size: %d bytes / %.2f MB / %.2f GB, Throughput: %.2f MB/s / %.2f GB/s)",
-                trainer.global_rank,
-                filepath,
-                duration,
+                "[BENCHMARK] Checkpoint Save launched asynchronously in background thread for step %d",
                 trainer.global_step,
-                trainer.global_rank,
-                size_bytes,
-                size_mb,
-                size_gb,
-                throughput_mb_s,
-                throughput_gb_s,
             )
-            logging.info(
-                "[BENCHMARK] Checkpoint Size : Rank : %d : Step : %d : Bytes : %d : Path: %s",
-                trainer.global_rank,
-                trainer.global_step,
-                size_bytes,
-                filepath,
-            )
+            self._executor.submit(_do_save)
         else:
-            logging.info(
-                "[BENCHMARK] Finished saving checkpoint (Non-Writing Rank %d - skipped data upload) to %s in %.2f seconds for global_step %d from rank %d",
-                trainer.global_rank,
-                filepath,
-                duration,
-                trainer.global_step,
-                trainer.global_rank,
-            )
+            _do_save()
+            duration = time.perf_counter() - start_time_perf
+            for callback in trainer.callbacks:
+                if isinstance(callback, StepTimeCallback):
+                    callback.ckpt_time += duration
 
     @staticmethod
     def _measure_checkpoint_bytes(filepath):
