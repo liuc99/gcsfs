@@ -418,6 +418,17 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def _measure_checkpoint_bytes(filepath):
+        if os.path.exists(filepath):
+            if os.path.isfile(filepath):
+                return os.path.getsize(filepath)
+            elif os.path.isdir(filepath):
+                total_size = 0
+                for dirpath, _, filenames in os.walk(filepath):
+                    for f in filenames:
+                        fp = os.path.join(dirpath, f)
+                        if not os.path.islink(fp):
+                            total_size += os.path.getsize(fp)
+                return total_size
         fs, path = fsspec.core.url_to_fs(filepath)
         return int(fs.du(path))
 
