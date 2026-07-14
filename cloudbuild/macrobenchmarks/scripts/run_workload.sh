@@ -26,6 +26,10 @@ if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
   fi
 fi
 
+if [ "${_USE_GCSFUSE:-false}" = "true" ] && [ "${_USE_LUSTRE:-false}" = "true" ] && [ -z "${_ADDITIONAL_CHECKPOINT_PATHS:-}" ]; then
+  _ADDITIONAL_CHECKPOINT_PATHS="/lustre/checkpoints"
+fi
+
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /workspace/start_time.txt
 shared_workload_helm_args
 helm install "$RUN_ID" "$CHART" -f "$CHART/values_base.yaml" \

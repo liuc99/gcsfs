@@ -386,7 +386,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             shutil.copyfile(src_path, tmp_dst)
             os.replace(tmp_dst, dst_path)
 
-    def _save_to_single_target(self, trainer, target_filepath, is_writer, staged_tmp_file=None):
+    def _save_to_single_target(self, trainer, target_filepath, is_writer, staged_tmp_file=None, is_last_target=False):
         start_time_wall = time.time()
         start_time_perf = time.perf_counter()
 
@@ -475,6 +475,11 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 stop_progress_event.set()
                 if ticker_thread is not None:
                     ticker_thread.join(timeout=1.0)
+                if is_last_target and staged_tmp_file and os.path.exists(staged_tmp_file):
+                    try:
+                        os.remove(staged_tmp_file)
+                    except Exception:
+                        pass
 
             total_duration = time.perf_counter() - save_start
             finish_t = time.perf_counter()
@@ -595,14 +600,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 staged_tmp_file = None
 
         try:
-            for target_path in all_targets:
-                self._save_to_single_target(trainer, target_path, is_writer, staged_tmp_file)
-        finally:
+            for i, target_path in enumerate(all_targets):
+                is_last = (i == len(all_targets) - 1)
+                self._save_to_single_target(trainer, target_path, is_writer, staged_tmp_file, is_last_target=is_last)
+        except Exception:
             if staged_tmp_file and os.path.exists(staged_tmp_file):
                 try:
                     os.remove(staged_tmp_file)
                 except Exception:
                     pass
+            raise
 
     @staticmethod
     def _measure_checkpoint_bytes(filepath):

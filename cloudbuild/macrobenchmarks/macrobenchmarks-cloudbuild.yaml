@@ -6,6 +6,9 @@ substitutions:
   _BUCKET_TYPE: "regional"
   _MACHINE_TYPE: "c4-standard-192"
   _ENABLE_TIER1_NETWORKING: "true"
+  _NETWORK_NAME: ""
+  _SUBNET_NAME: ""
+  _ADDITIONAL_CHECKPOINT_PATHS: ""
   _REUSE_DATASET_BUCKET: "false"
   _ASYNC_CHECKPOINT: "false"
   _RESERVATION_AFFINITY: "any"
@@ -81,6 +84,9 @@ steps:
       - "_PER_DEVICE_BATCH=${_PER_DEVICE_BATCH}"
       - "_GRAD_ACCUM=${_GRAD_ACCUM}"
       - "_DATALOADER_WORKERS=${_DATALOADER_WORKERS}"
+      - "_NETWORK_NAME=${_NETWORK_NAME}"
+      - "_SUBNET_NAME=${_SUBNET_NAME}"
+      - "_ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS}"
     args: ["cloudbuild/macrobenchmarks/scripts/init_variables.sh"]
     waitFor: ["-"]
 

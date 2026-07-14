@@ -75,6 +75,7 @@ shared_workload_helm_args() {
   fi
   # Helm's --set / --set-string parses commas as value separators unless escaped with \,
   local helm_gcsfuse_mount_opts="${gcsfuse_mount_opts//,/\\,}"
+  local helm_additional_ckpt_paths="${_ADDITIONAL_CHECKPOINT_PATHS//,/\\,}"
   SHARED_HELM_ARGS=(
     --set gcsfs.datasetPath="${dataset_path}"
     --set workload.modelId="${_MODEL_ID}"
@@ -85,7 +86,7 @@ shared_workload_helm_args() {
     --set workload.requirements="${_REQUIREMENTS}"
     --set workload.trainingStrategy="${_TRAINING_STRATEGY}"
     --set workload.asyncCheckpoint="${_ASYNC_CHECKPOINT:-false}"
-    --set workload.additionalCheckpointPaths="${_ADDITIONAL_CHECKPOINT_PATHS:-}"
+    --set workload.additionalCheckpointPaths="${helm_additional_ckpt_paths:-}"
     --set "nodeSelector.cloud\.google\.com/gke-nodepool=${_MACHINE_TYPE}"
     --set serviceAccount=default
     --set gcsfuse.enabled="${_USE_GCSFUSE:-false}"

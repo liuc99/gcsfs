@@ -8,18 +8,22 @@ trap 'record_failure create-cluster' ERR
 skip_if_failed
 source "${BUILD_VARS_FILE}"
 
-echo "--- Creating dedicated VPC network: ${NETWORK_NAME} ---"
-gcloud compute networks create "${NETWORK_NAME}" \
-  --project="${PROJECT_ID}" \
-  --subnet-mode=custom --quiet
+if [ "${IS_EXISTING_NETWORK:-false}" != "true" ]; then
+  echo "--- Creating dedicated VPC network: ${NETWORK_NAME} ---"
+  gcloud compute networks create "${NETWORK_NAME}" \
+    --project="${PROJECT_ID}" \
+    --subnet-mode=custom --quiet
 
-echo "--- Creating dedicated subnetwork: ${SUBNET_NAME} ---"
-gcloud compute networks subnets create "${SUBNET_NAME}" \
-  --project="${PROJECT_ID}" \
-  --network="${NETWORK_NAME}" \
-  --region="${REGION}" \
-  --range="10.0.0.0/20" \
-  --enable-private-ip-google-access --quiet
+  echo "--- Creating dedicated subnetwork: ${SUBNET_NAME} ---"
+  gcloud compute networks subnets create "${SUBNET_NAME}" \
+    --project="${PROJECT_ID}" \
+    --network="${NETWORK_NAME}" \
+    --region="${REGION}" \
+    --range="10.0.0.0/20" \
+    --enable-private-ip-google-access --quiet
+else
+  echo "--- Using pre-existing VPC network: ${NETWORK_NAME} and subnet: ${SUBNET_NAME} ---"
+fi
 
 # `gcloud container clusters create` has no --node-pool flag and always names
 # its initial pool "default-pool", which would not match the workload's

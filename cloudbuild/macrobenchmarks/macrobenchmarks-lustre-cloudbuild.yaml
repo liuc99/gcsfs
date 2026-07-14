@@ -11,6 +11,9 @@ substitutions:
   _LUSTRE_DATASET_PVC: "lustre-dataset-pvc"
   _LUSTRE_CHECKPOINT_PVC: "lustre-checkpoint-pvc"
   _LUSTRE_CAPACITY: "12000Gi"
+  _NETWORK_NAME: ""
+  _SUBNET_NAME: ""
+  _ADDITIONAL_CHECKPOINT_PATHS: ""
   _REUSE_DATASET_BUCKET: "false"
   _ASYNC_CHECKPOINT: "false"
   _RESERVATION_AFFINITY: "any"
@@ -67,6 +70,9 @@ steps:
       - "_LUSTRE_CAPACITY=${_LUSTRE_CAPACITY}"
       - "_REUSE_DATASET_BUCKET=${_REUSE_DATASET_BUCKET}"
       - "_ASYNC_CHECKPOINT=${_ASYNC_CHECKPOINT}"
+      - "_NETWORK_NAME=${_NETWORK_NAME}"
+      - "_SUBNET_NAME=${_SUBNET_NAME}"
+      - "_ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS}"
     args: ["cloudbuild/macrobenchmarks/scripts/init_variables.sh"]
     waitFor: ["-"]
 

@@ -136,7 +136,7 @@ def parse_entries(
                 out.write_metrics[rank].append(
                     schema.WriteDurationMetrics(
                         global_rank=rank,
-                        checkpoint_location=checkpoint_location,
+                        checkpoint_location=path,
                         checkpoint_step=step,
                         start_time=start_time,
                         end_time=start_time + duration,

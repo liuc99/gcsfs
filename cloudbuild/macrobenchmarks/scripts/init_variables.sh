@@ -144,8 +144,19 @@ echo "export BRANCH_NAME=${SAFE_BRANCH}" >> "${BUILD_VARS_FILE}"
 # DNS-1035 naming restrictions (since Cloud Build UUIDs can start with numbers).
 echo "export RUN_ID=buildid-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
 echo "export CLUSTER_NAME=${_INFRA_PREFIX}-gke-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
-echo "export NETWORK_NAME=${_INFRA_PREFIX}-net-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
-echo "export SUBNET_NAME=${_INFRA_PREFIX}-subnet-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
+if [ -n "${_NETWORK_NAME:-}" ]; then
+  echo "export NETWORK_NAME=${_NETWORK_NAME}" >> "${BUILD_VARS_FILE}"
+  echo "export IS_EXISTING_NETWORK=true" >> "${BUILD_VARS_FILE}"
+else
+  echo "export NETWORK_NAME=${_INFRA_PREFIX}-net-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
+  echo "export IS_EXISTING_NETWORK=false" >> "${BUILD_VARS_FILE}"
+fi
+
+if [ -n "${_SUBNET_NAME:-}" ]; then
+  echo "export SUBNET_NAME=${_SUBNET_NAME}" >> "${BUILD_VARS_FILE}"
+else
+  echo "export SUBNET_NAME=${_INFRA_PREFIX}-subnet-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
+fi
 echo "export CHECKPOINT_BUCKET=${_INFRA_PREFIX}-macrobench-checkpoint-${SHORT_BUILD_ID}" >> "${BUILD_VARS_FILE}"
 if [ "${_REUSE_DATASET_BUCKET:-false}" = "true" ]; then
   SRC_DATASET_BUCKET=$(echo "${_DATASET_PATH}" | sed -E 's#^gs://([^/]+).*#\1#')
