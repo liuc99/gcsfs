@@ -525,12 +525,31 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         return int(fs.du(path))
 
     def _remove_checkpoint(self, trainer, filepath):
-        logging.info(
-            "[BENCHMARK] Checkpoint Delete Start : Rank: %d : Step: %d : Path: %s",
-            trainer.global_rank,
-            trainer.global_step,
-            filepath,
+        is_sharded_fsdp = (
+            getattr(getattr(trainer, "strategy", None), "name", "") == "fsdp"
+            and getattr(getattr(trainer, "strategy", None), "_state_dict_type", "") == "sharded"
+        ) or (
+            os.getenv("TRAINING_STRATEGY", "").lower() == "fsdp_sharded"
         )
+
+        is_deleter = (trainer.global_rank == 0) or is_sharded_fsdp
+
+        if is_deleter:
+            logging.info(
+                "[BENCHMARK] Checkpoint Delete Start (Deleter Rank %d) : Rank: %d : Step: %d : Path: %s",
+                trainer.global_rank,
+                trainer.global_rank,
+                trainer.global_step,
+                filepath,
+            )
+        else:
+            logging.info(
+                "[BENCHMARK] Checkpoint Delete Start (Non-Deleting Rank %d - skipped deletion) : Rank: %d : Step: %d : Path: %s",
+                trainer.global_rank,
+                trainer.global_rank,
+                trainer.global_step,
+                filepath,
+            )
         start_time = time.perf_counter()
         super()._remove_checkpoint(trainer, filepath)
         duration = time.perf_counter() - start_time
@@ -540,13 +559,24 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             if isinstance(callback, StepTimeCallback):
                 callback.ckpt_time += duration
 
-        logging.info(
-            "[BENCHMARK] Finished deleting checkpoint %s in %.2f seconds for global_step %d from rank %d",
-            filepath,
-            duration,
-            trainer.global_step,
-            trainer.global_rank,
-        )
+        if is_deleter:
+            logging.info(
+                "[BENCHMARK] Finished deleting checkpoint (Deleter Rank %d) %s in %.2f seconds for global_step %d from rank %d",
+                trainer.global_rank,
+                filepath,
+                duration,
+                trainer.global_step,
+                trainer.global_rank,
+            )
+        else:
+            logging.info(
+                "[BENCHMARK] Finished deleting checkpoint (Non-Deleting Rank %d - skipped deletion) %s in %.2f seconds for global_step %d from rank %d",
+                trainer.global_rank,
+                filepath,
+                duration,
+                trainer.global_step,
+                trainer.global_rank,
+            )
 
 
 class LoggedDDPStrategy(DDPStrategy):

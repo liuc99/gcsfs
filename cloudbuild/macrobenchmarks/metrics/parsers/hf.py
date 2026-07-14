@@ -37,7 +37,7 @@ CHECKPOINT_RESTORE_END_PATTERN = (
     r"Path: (.*)"
 )
 CHECKPOINT_DELETE_PATTERN = (
-    r"(?:\[BENCHMARK\]\s+)?Finished deleting checkpoint (.*) in ([0-9.]+) seconds for "
+    r"(?:\[BENCHMARK\]\s+)?Finished deleting checkpoint(?:\s*\([^)]+\))?\s+(.*) in ([0-9.]+) seconds for "
     r"global_step ([0-9]+) from rank ([0-9]+)"
 )
 ACCELERATOR_BLOCKED_TIME_PATTERN = (
