@@ -86,7 +86,7 @@ SIMULATED_STEP_COMPUTE_SECONDS = float(
     os.getenv("SIMULATED_STEP_COMPUTE_SECONDS", "1.0")
 )
 # Single grep-able config marker per knob (parity with the model_id: line).
-logging.info("simulated_step_compute_seconds: %s", SIMULATED_STEP_COMPUTE_SECONDS)
+logging.info("[BENCHMARK] simulated_step_compute_seconds: %s", SIMULATED_STEP_COMPUTE_SECONDS)
 
 # ---- Config (env-overridable) ---------------------------------------------
 preset_max_steps = int(os.getenv("MAX_STEPS", "1000"))
@@ -119,7 +119,7 @@ if training_strategy not in ("ddp", "fsdp_sharded", "fsdp_full"):
         f"(got {training_strategy!r})."
     )
 # Parity with the model_id: line -- a single grep-able config marker per knob.
-logging.info("training_strategy: %s", training_strategy)
+logging.info("[BENCHMARK] training_strategy: %s", training_strategy)
 
 # Map model_id to the canonical id and log it as ``model_id: <id>``.
 # NOTE: this macrobenchmarks pipeline does NOT consume this line -- it derives
@@ -132,7 +132,7 @@ if "Llama-3.1-8B" in model_id:
     metadata_model_id = "llama3-1-8b"  # Default
 else:
     metadata_model_id = "unknown"
-logging.info("model_id: %s", metadata_model_id)
+logging.info("[BENCHMARK] model_id: %s", metadata_model_id)
 
 # If ``MODEL_ID`` is a GCS path, the launcher pre-downloads the weights to
 # ``/tmp/<basename>`` (gcloud storage cp -r). Remap ``model_id`` to the local
@@ -184,7 +184,7 @@ num_nodes = max(1, world_size // local_world_size)
 global_batch_size = (
     per_device_train_batch_size * gradient_accumulation_steps * world_size
 )
-logging.info("global_batch_size: %d", global_batch_size)
+logging.info("[BENCHMARK] global_batch_size: %d", global_batch_size)
 
 # ---- Tokenizer ------------------------------------------------------------
 # Real Llama tokenizer. Requires HF_TOKEN env var when downloading from the
@@ -380,7 +380,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             try:
                 size_bytes = self._measure_checkpoint_bytes(filepath)
             except Exception as e:
-                logging.warning("Could not measure checkpoint size: %s", e)
+                logging.warning("[BENCHMARK] Could not measure checkpoint size: %s", e)
 
         if size_bytes is not None and duration > 0:
             size_mb = size_bytes / (1024 * 1024)
@@ -532,17 +532,17 @@ if __name__ == "__main__":
     # ---- Verify gcsfs is the active fsspec backend for "gs" ----------------
     try:
         fs = fsspec.filesystem("gs")
-        logging.info("[SYSTEM CHECK] fsspec 'gs' backend class: %s", type(fs))
+        logging.info("[BENCHMARK] [SYSTEM CHECK] fsspec 'gs' backend class: %s", type(fs))
         logging.info(
-            "[SYSTEM CHECK] If this says 'gcsfs.core.GCSFileSystem', you are using gcsfs."
+            "[BENCHMARK] [SYSTEM CHECK] If this says 'gcsfs.core.GCSFileSystem', you are using gcsfs."
         )
     except Exception as e:
-        logging.info("[SYSTEM CHECK] Failed to load GS filesystem: %s", e)
+        logging.info("[BENCHMARK] [SYSTEM CHECK] Failed to load GS filesystem: %s", e)
 
     # ---- Dataset: HuggingFace streaming parquet -----------------------------
     # This is the GCS read pattern under test.
-    logging.info("[INFO] Loading %s dataset", dataset_path)
-    logging.info("[INFO] Using HF dataloader")
+    logging.info("[BENCHMARK] [INFO] Loading %s dataset", dataset_path)
+    logging.info("[BENCHMARK] [INFO] Using HF dataloader")
     load_start = time.perf_counter()
     ds = datasets.load_dataset(
         "parquet",
@@ -551,7 +551,7 @@ if __name__ == "__main__":
         streaming=True,
     )
     logging.info(
-        f"[INFO] HF dataloader prepared in {time.perf_counter() - load_start:.4f}s"
+        f"[BENCHMARK] [INFO] HF dataloader prepared in {time.perf_counter() - load_start:.4f}s"
     )
     # Shard the streaming dataset across DDP ranks. torchrun sets RANK and
     # WORLD_SIZE before Python starts, so reading from env works at this point
@@ -625,7 +625,7 @@ if __name__ == "__main__":
     )
 
     if checkpoint_load_path:
-        logging.info("[INFO] Resuming from checkpoint: %s", checkpoint_load_path)
+        logging.info("[BENCHMARK] [INFO] Resuming from checkpoint: %s", checkpoint_load_path)
     else:
         checkpoint_load_path = None
 
@@ -642,7 +642,7 @@ if __name__ == "__main__":
 
     def profiled_setup_data(self, *args, **kwargs):
         rank = self.trainer.global_rank
-        logging.info(f"[RANK {rank}] [PROFILER] FitLoop.setup_data started")
+        logging.info(f"[BENCHMARK] [RANK {rank}] [PROFILER] FitLoop.setup_data started")
         # We use the PL Profiler so this appears directly in the FIT Profiler Report
         with self.trainer.profiler.profile("FitLoop.setup_data (Data loading)"):
             return original_setup_data(self, *args, **kwargs)
@@ -664,7 +664,7 @@ if __name__ == "__main__":
         # We log this to the console immediately for real-time visibility
         rank = os.environ.get("RANK", "0")
         logging.info(
-            f"[RANK {rank}] [PROFILER] _PrefetchDataFetcher.__iter__ "
+            f"[BENCHMARK] [RANK {rank}] [PROFILER] _PrefetchDataFetcher.__iter__ "
             f"(Worker Spawn and Data Loading) took {duration:.4f} seconds."
         )
 
@@ -673,7 +673,7 @@ if __name__ == "__main__":
     _PrefetchDataFetcher.__iter__ = profiled_fetcher_iter
     # ==============================================================================
 
-    logging.info("[INFO] Training Started.")
+    logging.info("[BENCHMARK] [INFO] Training Started.")
 
     trainer.fit(lit_model, train_loader, ckpt_path=checkpoint_load_path)
-    logging.info("[INFO] Training Completed.")
+    logging.info("[BENCHMARK] [INFO] Training Completed.")
