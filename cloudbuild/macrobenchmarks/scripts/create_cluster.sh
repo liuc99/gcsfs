@@ -84,15 +84,13 @@ wait_for_resource_creation() {
 }
 
 if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
-  echo "--- Waiting for GCSFuse CSI driver sidecar injector and node driver to be ready ---"
-  wait_for_resource_creation deployment/gke-gcsfuse-sidecar-injector kube-system
-  kubectl rollout status deployment/gke-gcsfuse-sidecar-injector -n kube-system --timeout=300s || true
-  wait_for_resource_creation daemonset/gke-gcsfuse-node kube-system
-  kubectl rollout status daemonset/gke-gcsfuse-node -n kube-system --timeout=300s || true
+  echo "--- Waiting for GCSFuse CSI driver node daemonset to be ready ---"
+  wait_for_resource_creation daemonset/gcsfusecsi-node kube-system
+  kubectl rollout status daemonset/gcsfusecsi-node -n kube-system --timeout=300s || true
 fi
 if [ "${_USE_LUSTRE:-false}" = "true" ]; then
   echo "--- Waiting for Parallelstore CSI driver node daemonset to be ready ---"
-  wait_for_resource_creation daemonset/gke-parallelstore-node kube-system
-  kubectl rollout status daemonset/gke-parallelstore-node -n kube-system --timeout=300s || true
+  wait_for_resource_creation daemonset/parallelstore-csi-node kube-system
+  kubectl rollout status daemonset/parallelstore-csi-node -n kube-system --timeout=300s || true
   setup_lustre_pvcs
 fi
