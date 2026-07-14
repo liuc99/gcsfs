@@ -357,7 +357,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.async_checkpoint = os.getenv("ASYNC_CHECKPOINT", "false").lower() == "true"
-        self._executor = ThreadPoolExecutor(max_workers=2) if self.async_checkpoint else None
+        self._executor = ThreadPoolExecutor(max_workers=1) if self.async_checkpoint else None
+        self._last_future = None
 
     def teardown(self, trainer, pl_module, stage=None):
         if self._executor is not None:
@@ -450,11 +451,17 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 )
 
         if self.async_checkpoint:
+            if self._last_future is not None and not self._last_future.done():
+                logging.info(
+                    "[BENCHMARK] Waiting for previous async checkpoint to finish before launching step %d...",
+                    trainer.global_step,
+                )
+                self._last_future.result()
             logging.info(
                 "[BENCHMARK] Checkpoint Save launched asynchronously in background thread for step %d",
                 trainer.global_step,
             )
-            self._executor.submit(_do_save)
+            self._last_future = self._executor.submit(_do_save)
         else:
             _do_save()
             duration = time.perf_counter() - start_time_perf
