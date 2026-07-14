@@ -132,6 +132,7 @@ spec:
   csi:
     driver: parallelstore.csi.storage.gke.io
     volumeHandle: ${instance}
+  storageClassName: ""
   persistentVolumeReclaimPolicy: Retain
 ---
 apiVersion: v1
@@ -141,6 +142,7 @@ metadata:
 spec:
   accessModes:
   - ReadWriteMany
+  storageClassName: ""
   resources:
     requests:
       storage: ${capacity}
@@ -158,6 +160,7 @@ spec:
   csi:
     driver: parallelstore.csi.storage.gke.io
     volumeHandle: ${instance}
+  storageClassName: ""
   persistentVolumeReclaimPolicy: Retain
 ---
 apiVersion: v1
@@ -167,6 +170,7 @@ metadata:
 spec:
   accessModes:
   - ReadWriteMany
+  storageClassName: ""
   resources:
     requests:
       storage: ${capacity}
