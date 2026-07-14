@@ -85,6 +85,7 @@ shared_workload_helm_args() {
     --set workload.requirements="${_REQUIREMENTS}"
     --set workload.trainingStrategy="${_TRAINING_STRATEGY}"
     --set workload.asyncCheckpoint="${_ASYNC_CHECKPOINT:-false}"
+    --set workload.additionalCheckpointPaths="${_ADDITIONAL_CHECKPOINT_PATHS:-}"
     --set "nodeSelector.cloud\.google\.com/gke-nodepool=${_MACHINE_TYPE}"
     --set serviceAccount=default
     --set gcsfuse.enabled="${_USE_GCSFUSE:-false}"

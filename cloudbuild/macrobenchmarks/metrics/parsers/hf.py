@@ -116,22 +116,23 @@ def parse_entries(
         if m:
             rank = int(m.group(1))
             step = int(m.group(2))
-            if (step, rank) not in checkpoint_starts:
-                checkpoint_starts[(step, rank)] = {
-                    "start_time": float(m.group(3)),
-                    "path": m.group(4),
-                }
+            start_time = float(m.group(3))
+            path = m.group(4)
+            checkpoint_starts[(step, rank, path)] = {
+                "start_time": start_time,
+                "path": path,
+            }
 
         m = re.search(CHECKPOINT_END_PATTERN, message)
         if m:
+            path = m.group(1)
+            duration = float(m.group(2))
             step = int(m.group(3))
             rank = int(m.group(4))
-            if (step, rank) in checkpoint_starts:
-                start_info = checkpoint_starts[(step, rank)]
-                duration = float(m.group(2))
+            key = (step, rank, path)
+            if key in checkpoint_starts:
+                start_info = checkpoint_starts[key]
                 start_time = start_info["start_time"]
-                # The "Finished saving" log carries only a duration, so derive
-                # end_time from the paired start; calc recomputes end - start.
                 out.write_metrics[rank].append(
                     schema.WriteDurationMetrics(
                         global_rank=rank,
@@ -141,7 +142,7 @@ def parse_entries(
                         end_time=start_time + duration,
                     )
                 )
-                del checkpoint_starts[(step, rank)]
+                del checkpoint_starts[key]
 
         m = re.search(CHECKPOINT_DELETE_PATTERN, message)
         if m:

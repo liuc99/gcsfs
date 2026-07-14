@@ -366,21 +366,27 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             self._executor.shutdown(wait=True)
         super().teardown(trainer, pl_module, stage)
 
-    def _save_checkpoint(self, trainer, filepath):
-        # Log wall-clock time.time() (not perf_counter) for the "Start time"
-        # absolute timestamp the metrics parser pairs across log lines:
-        # perf_counter's origin is per-process and meaningless outside it. Writes
-        # are rank-0 only so this is less load-bearing than the restore path
-        # below, but keeps every checkpoint timestamp on one comparable clock.
-        is_sharded_fsdp = (
-            getattr(getattr(trainer, "strategy", None), "name", "") == "fsdp"
-            and getattr(getattr(trainer, "strategy", None), "_state_dict_type", "") == "sharded"
-        ) or (
-            os.getenv("TRAINING_STRATEGY", "").lower() == "fsdp_sharded"
-        )
+    @staticmethod
+    def _copy_staged_checkpoint(src_path, dst_path):
+        tmp_dst = dst_path + ".part"
+        parent_dir = os.path.dirname(dst_path)
+        if parent_dir and not dst_path.startswith("gs://"):
+            os.makedirs(parent_dir, exist_ok=True)
 
-        is_writer = (trainer.global_rank == 0) or is_sharded_fsdp
+        if dst_path.startswith("gs://"):
+            fs, path = fsspec.core.url_to_fs(dst_path)
+            tmp_path = path + ".part"
+            with open(src_path, "rb") as f_src, fs.open(tmp_path, "wb") as f_dst:
+                shutil.copyfileobj(f_src, f_dst, length=64 * 1024 * 1024)
+            try:
+                fs.rename(tmp_path, path)
+            except Exception:
+                pass
+        else:
+            shutil.copyfile(src_path, tmp_dst)
+            os.replace(tmp_dst, dst_path)
 
+    def _save_to_single_target(self, trainer, target_filepath, is_writer, staged_tmp_file=None):
         start_time_wall = time.time()
         start_time_perf = time.perf_counter()
 
@@ -391,7 +397,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 trainer.global_rank,
                 trainer.global_step,
                 start_time_wall,
-                filepath,
+                target_filepath,
             )
         else:
             logging.info(
@@ -400,7 +406,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 trainer.global_rank,
                 trainer.global_step,
                 start_time_wall,
-                filepath,
+                target_filepath,
             )
 
         def _do_save():
@@ -417,7 +423,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     total_elapsed = now_t - save_start
                     if is_writer:
                         try:
-                            curr_bytes = self._measure_checkpoint_bytes(filepath)
+                            curr_bytes = self._measure_checkpoint_bytes(target_filepath)
                             curr_mb = curr_bytes / (1024 * 1024)
                             curr_gb = curr_bytes / (1024 * 1024 * 1024)
 
@@ -450,7 +456,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                                 curr_gb,
                                 instant_rate_mb_s,
                                 pure_rate_mb_s,
-                                filepath,
+                                target_filepath,
                             )
                         except Exception:
                             pass
@@ -461,7 +467,10 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 ticker_thread.start()
 
             try:
-                super(LoggedModelCheckpoint, self)._save_checkpoint(trainer, filepath)
+                if is_writer and staged_tmp_file and os.path.exists(staged_tmp_file):
+                    self._copy_staged_checkpoint(staged_tmp_file, target_filepath)
+                else:
+                    super(LoggedModelCheckpoint, self)._save_checkpoint(trainer, target_filepath)
             finally:
                 stop_progress_event.set()
                 if ticker_thread is not None:
@@ -474,7 +483,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             size_bytes = None
             if is_writer:
                 try:
-                    size_bytes = self._measure_checkpoint_bytes(filepath)
+                    size_bytes = self._measure_checkpoint_bytes(target_filepath)
                 except Exception as e:
                     logging.warning("[BENCHMARK] Could not measure checkpoint size: %s", e)
 
@@ -492,7 +501,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     "[BENCHMARK] Finished saving checkpoint (Writer Rank %d) to %s in %.2f seconds (Upload Time: %.2f seconds) for global_step %d from rank %d "
                     "(Size: %d bytes / %.2f MB / %.2f GB, Network Upload Throughput: %.2f MB/s / %.2f GB/s, Overall Throughput: %.2f MB/s / %.2f GB/s)",
                     trainer.global_rank,
-                    filepath,
+                    target_filepath,
                     total_duration,
                     upload_duration,
                     trainer.global_step,
@@ -510,13 +519,13 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     trainer.global_rank,
                     trainer.global_step,
                     size_bytes,
-                    filepath,
+                    target_filepath,
                 )
             else:
                 logging.info(
                     "[BENCHMARK] Finished saving checkpoint (Non-Writing Rank %d - skipped data upload) to %s in %.2f seconds for global_step %d from rank %d",
                     trainer.global_rank,
-                    filepath,
+                    target_filepath,
                     total_duration,
                     trainer.global_step,
                     trainer.global_rank,
@@ -530,16 +539,70 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 )
                 self._last_future.result()
             logging.info(
-                "[BENCHMARK] Checkpoint Save launched asynchronously in background thread for step %d",
+                "[BENCHMARK] Checkpoint Save launched asynchronously in background thread for step %d to %s",
                 trainer.global_step,
+                target_filepath,
             )
             self._last_future = self._executor.submit(_do_save)
         else:
             _do_save()
-            duration = time.perf_counter() - start_time_perf
             for callback in trainer.callbacks:
                 if isinstance(callback, StepTimeCallback):
-                    callback.ckpt_time += duration
+                    callback.ckpt_time += (time.perf_counter() - start_time_perf)
+
+    def _save_checkpoint(self, trainer, filepath):
+        is_sharded_fsdp = (
+            getattr(getattr(trainer, "strategy", None), "name", "") == "fsdp"
+            and getattr(getattr(trainer, "strategy", None), "_state_dict_type", "") == "sharded"
+        ) or (
+            os.getenv("TRAINING_STRATEGY", "").lower() == "fsdp_sharded"
+        )
+
+        is_writer = (trainer.global_rank == 0) or is_sharded_fsdp
+
+        extra_paths_str = os.getenv("ADDITIONAL_CHECKPOINT_PATHS", "")
+        all_targets = [filepath]
+        if extra_paths_str:
+            for raw_p in extra_paths_str.split(","):
+                p = raw_p.strip()
+                if p and p != filepath:
+                    extra_file = os.path.join(p, os.path.basename(filepath))
+                    if extra_file not in all_targets:
+                        all_targets.append(extra_file)
+
+        staged_tmp_file = None
+        if is_writer and len(all_targets) > 1:
+            stage_start = time.perf_counter()
+            staged_fd, staged_tmp_file = tempfile.mkstemp(prefix="staged_ckpt_", suffix=".ckpt")
+            os.close(staged_fd)
+            try:
+                super()._save_checkpoint(trainer, staged_tmp_file)
+                stage_dur = time.perf_counter() - stage_start
+                logging.info(
+                    "[BENCHMARK] Staged checkpoint to local tmp file %s in %.2f seconds for global_step %d from rank %d",
+                    staged_tmp_file,
+                    stage_dur,
+                    trainer.global_step,
+                    trainer.global_rank,
+                )
+            except Exception as e:
+                logging.warning("[BENCHMARK] Staging checkpoint failed: %s; falling back to direct save", e)
+                if staged_tmp_file and os.path.exists(staged_tmp_file):
+                    try:
+                        os.remove(staged_tmp_file)
+                    except Exception:
+                        pass
+                staged_tmp_file = None
+
+        try:
+            for target_path in all_targets:
+                self._save_to_single_target(trainer, target_path, is_writer, staged_tmp_file)
+        finally:
+            if staged_tmp_file and os.path.exists(staged_tmp_file):
+                try:
+                    os.remove(staged_tmp_file)
+                except Exception:
+                    pass
 
     @staticmethod
     def _measure_checkpoint_bytes(filepath):

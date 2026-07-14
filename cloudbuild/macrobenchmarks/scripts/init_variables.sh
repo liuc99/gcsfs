@@ -58,9 +58,6 @@ case "${_USE_LUSTRE:-false}" in
   true|false) ;;
   *) echo "ERROR: _USE_LUSTRE must be true|false (got '${_USE_LUSTRE}')."; exit 1 ;;
 esac
-if [ "${_USE_GCSFUSE:-false}" = "true" ] && [ "${_USE_LUSTRE:-false}" = "true" ]; then
-  echo "ERROR: _USE_GCSFUSE and _USE_LUSTRE cannot both be 'true' simultaneously."; exit 1
-fi
 if [ "${_USE_LUSTRE:-false}" = "true" ]; then
   if [ -z "${_LUSTRE_INSTANCE}" ]; then
     echo "ERROR: _LUSTRE_INSTANCE must be specified when _USE_LUSTRE is 'true'."; exit 1
@@ -162,5 +159,6 @@ echo "export REGION=${REGION}" >> "${BUILD_VARS_FILE}"
 echo "export _USE_GCSFUSE=${_USE_GCSFUSE:-false}" >> "${BUILD_VARS_FILE}"
 echo "export _GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE:-true}" >> "${BUILD_VARS_FILE}"
 echo "export _ASYNC_CHECKPOINT=${_ASYNC_CHECKPOINT:-false}" >> "${BUILD_VARS_FILE}"
+echo "export _ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS:-}" >> "${BUILD_VARS_FILE}"
 echo "export _RESERVATION_AFFINITY=${_RESERVATION_AFFINITY:-any}" >> "${BUILD_VARS_FILE}"
 echo "export _RESERVATION_NAME=${_RESERVATION_NAME:-}" >> "${BUILD_VARS_FILE}"

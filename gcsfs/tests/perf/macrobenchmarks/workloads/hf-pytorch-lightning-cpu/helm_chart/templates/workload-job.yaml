@@ -131,6 +131,8 @@ spec:
                 value: "{{ $root.Values.workload.ckptToKeep }}"
               - name: ASYNC_CHECKPOINT
                 value: "{{ $root.Values.workload.asyncCheckpoint }}"
+              - name: ADDITIONAL_CHECKPOINT_PATHS
+                value: "{{ $root.Values.workload.additionalCheckpointPaths }}"
               - name: MODEL_ID
                 value: "{{ $root.Values.workload.modelId }}"
               - name: TRAINING_STRATEGY
