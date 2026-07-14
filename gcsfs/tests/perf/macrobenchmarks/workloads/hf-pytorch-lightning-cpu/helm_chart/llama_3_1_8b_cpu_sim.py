@@ -330,7 +330,7 @@ class StepTimeCallback(Callback):
         loss = outputs["loss"] if isinstance(outputs, dict) else outputs
         loss_val = loss.item() if isinstance(loss, torch.Tensor) else loss
         logging.info(
-            "Global Rank: %d | Step: %d | Loss: %.4f | Step Time: %.4fs | "
+            "[BENCHMARK] Global Rank: %d | Step: %d | Loss: %.4f | Step Time: %.4fs | "
             "Throughput: %.2f samples/s | Local Throughput: %.2f samples/s",
             trainer.global_rank,
             trainer.global_step,
@@ -360,7 +360,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         # are rank-0 only so this is less load-bearing than the restore path
         # below, but keeps every checkpoint timestamp on one comparable clock.
         logging.info(
-            "Checkpoint Save : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
+            "[BENCHMARK] Checkpoint Save : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
             trainer.global_rank,
             trainer.global_step,
             time.time(),
@@ -375,26 +375,46 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             if isinstance(callback, StepTimeCallback):
                 callback.ckpt_time += duration
 
-        logging.info(
-            "Finished saving checkpoint to %s in %.2f seconds for global_step %d from rank %d",
-            filepath,
-            duration,
-            trainer.global_step,
-            trainer.global_rank,
-        )
-
+        size_bytes = None
         if trainer.global_rank == 0:
             try:
                 size_bytes = self._measure_checkpoint_bytes(filepath)
-                logging.info(
-                    "Checkpoint Size : Rank : %d : Step : %d : Bytes : %d : Path: %s",
-                    trainer.global_rank,
-                    trainer.global_step,
-                    size_bytes,
-                    filepath,
-                )
             except Exception as e:
                 logging.warning("Could not measure checkpoint size: %s", e)
+
+        if size_bytes is not None and duration > 0:
+            size_mb = size_bytes / (1024 * 1024)
+            size_gb = size_bytes / (1024 * 1024 * 1024)
+            throughput_mb_s = size_mb / duration
+            throughput_gb_s = size_gb / duration
+            logging.info(
+                "[BENCHMARK] Finished saving checkpoint to %s in %.2f seconds for global_step %d from rank %d "
+                "(Size: %d bytes / %.2f MB / %.2f GB, Throughput: %.2f MB/s / %.2f GB/s)",
+                filepath,
+                duration,
+                trainer.global_step,
+                trainer.global_rank,
+                size_bytes,
+                size_mb,
+                size_gb,
+                throughput_mb_s,
+                throughput_gb_s,
+            )
+            logging.info(
+                "[BENCHMARK] Checkpoint Size : Rank : %d : Step : %d : Bytes : %d : Path: %s",
+                trainer.global_rank,
+                trainer.global_step,
+                size_bytes,
+                filepath,
+            )
+        else:
+            logging.info(
+                "[BENCHMARK] Finished saving checkpoint to %s in %.2f seconds for global_step %d from rank %d",
+                filepath,
+                duration,
+                trainer.global_step,
+                trainer.global_rank,
+            )
 
     @staticmethod
     def _measure_checkpoint_bytes(filepath):
@@ -403,7 +423,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
     def _remove_checkpoint(self, trainer, filepath):
         logging.info(
-            "Checkpoint Delete Start : Rank: %d : Step: %d : Path: %s",
+            "[BENCHMARK] Checkpoint Delete Start : Rank: %d : Step: %d : Path: %s",
             trainer.global_rank,
             trainer.global_step,
             filepath,
@@ -418,7 +438,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 callback.ckpt_time += duration
 
         logging.info(
-            "Finished deleting checkpoint %s in %.2f seconds for global_step %d from rank %d",
+            "[BENCHMARK] Finished deleting checkpoint %s in %.2f seconds for global_step %d from rank %d",
             filepath,
             duration,
             trainer.global_step,
@@ -437,7 +457,7 @@ class LoggedDDPStrategy(DDPStrategy):
         # cross-node span is valid (NTP-synced); duration stays on perf_counter,
         # a within-process elapsed measurement.
         logging.info(
-            "Checkpoint Restore Start : Rank : %d : Start time: %f seconds : Path: %s",
+            "[BENCHMARK] Checkpoint Restore Start : Rank : %d : Start time: %f seconds : Path: %s",
             self.global_rank,
             time.time(),
             checkpoint_path,
@@ -446,7 +466,7 @@ class LoggedDDPStrategy(DDPStrategy):
         checkpoint = super().load_checkpoint(checkpoint_path, weights_only, **kwargs)
         duration = time.perf_counter() - start_time
         logging.info(
-            "Finished restoring checkpoint : Rank : %d : Duration: %.2f seconds : End Time: %.2f seconds : Path: %s",
+            "[BENCHMARK] Finished restoring checkpoint : Rank : %d : Duration: %.2f seconds : End Time: %.2f seconds : Path: %s",
             self.global_rank,
             duration,
             time.time(),
@@ -460,7 +480,7 @@ class LoggedFSDPStrategy(FSDPStrategy):
 
     def load_checkpoint(self, checkpoint_path, *args, **kwargs):
         logging.info(
-            "Checkpoint Restore Start : Rank : %d : Start time: %f seconds : Path: %s",
+            "[BENCHMARK] Checkpoint Restore Start : Rank : %d : Start time: %f seconds : Path: %s",
             self.global_rank,
             time.time(),
             checkpoint_path,
@@ -469,7 +489,7 @@ class LoggedFSDPStrategy(FSDPStrategy):
         checkpoint = super().load_checkpoint(checkpoint_path, *args, **kwargs)
         duration = time.perf_counter() - start_time
         logging.info(
-            "Finished restoring checkpoint : Rank : %d : Duration: %.2f seconds : End Time: %.2f seconds : Path: %s",
+            "[BENCHMARK] Finished restoring checkpoint : Rank : %d : Duration: %.2f seconds : End Time: %.2f seconds : Path: %s",
             self.global_rank,
             duration,
             time.time(),

@@ -16,28 +16,28 @@ from metrics import raw_store, schema
 
 # --- regexes -----------------------------------------------------------
 STEP_METRICS_PATTERN = (
-    r"Global Rank: 0 \| Step: ([0-9]+) \| Loss: [0-9.]+ \| "
+    r"(?:\[BENCHMARK\]\s+)?Global Rank: 0 \| Step: ([0-9]+) \| Loss: [0-9.]+ \| "
     r"Step Time: ([0-9.]+)s \| Throughput: ([0-9.]+) samples/s"
 )
 CHECKPOINT_START_PATTERN = (
-    r"Checkpoint Save : Rank: ([0-9]+) : Step: ([0-9]+) : "
+    r"(?:\[BENCHMARK\]\s+)?Checkpoint Save : Rank: ([0-9]+) : Step: ([0-9]+) : "
     r"Start time: ([0-9.]+) seconds: Path: (.*)"
 )
 CHECKPOINT_END_PATTERN = (
-    r"Finished saving checkpoint to (.*) in ([0-9.]+) seconds for "
+    r"(?:\[BENCHMARK\]\s+)?Finished saving checkpoint to (.*) in ([0-9.]+) seconds for "
     r"global_step ([0-9]+)\s+from rank ([0-9]+)"
 )
 CHECKPOINT_RESTORE_START_PATTERN = (
-    r"Checkpoint Restore Start : Rank : ([0-9]+) : "
+    r"(?:\[BENCHMARK\]\s+)?Checkpoint Restore Start : Rank : ([0-9]+) : "
     r"Start time: ([0-9.]+) seconds : Path: (.*)"
 )
 CHECKPOINT_RESTORE_END_PATTERN = (
-    r"Finished restoring checkpoint : Rank : ([0-9]+) : "
+    r"(?:\[BENCHMARK\]\s+)?Finished restoring checkpoint : Rank : ([0-9]+) : "
     r"Duration: ([0-9.]+) seconds : End Time: ([0-9.]+) seconds : "
     r"Path: (.*)"
 )
 CHECKPOINT_DELETE_PATTERN = (
-    r"Finished deleting checkpoint (.*) in ([0-9.]+) seconds for "
+    r"(?:\[BENCHMARK\]\s+)?Finished deleting checkpoint (.*) in ([0-9.]+) seconds for "
     r"global_step ([0-9]+) from rank ([0-9]+)"
 )
 ACCELERATOR_BLOCKED_TIME_PATTERN = (
@@ -46,7 +46,7 @@ ACCELERATOR_BLOCKED_TIME_PATTERN = (
 )
 
 CHECKPOINT_SIZE_PATTERN = (
-    r"Checkpoint Size : Rank : ([0-9]+) : Step : ([0-9]+) : "
+    r"(?:\[BENCHMARK\]\s+)?Checkpoint Size : Rank : ([0-9]+) : Step : ([0-9]+) : "
     r"Bytes : ([0-9]+) : Path: (.*)"
 )
 
