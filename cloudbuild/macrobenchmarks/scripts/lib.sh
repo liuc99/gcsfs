@@ -64,11 +64,6 @@ shared_workload_helm_args() {
     dataset_path="/lustre/dataset"
   fi
   local gcsfuse_mount_opts="${_GCSFUSE_MOUNT_OPTIONS:-implicit-dirs}"
-  if [ "${_GCSFUSE_ENABLE_STREAM_WRITE:-false}" = "true" ]; then
-    if [[ "$gcsfuse_mount_opts" != *"enable-storage-client-library"* ]]; then
-      gcsfuse_mount_opts="${gcsfuse_mount_opts},enable-storage-client-library"
-    fi
-  fi
   # Helm's --set / --set-string parses commas as value separators unless escaped with \,
   local helm_gcsfuse_mount_opts="${gcsfuse_mount_opts//,/\\,}"
   SHARED_HELM_ARGS=(

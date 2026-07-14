@@ -41,10 +41,6 @@ case "${_USE_GCSFUSE:-false}" in
   true|false) ;;
   *) echo "ERROR: _USE_GCSFUSE must be true|false (got '${_USE_GCSFUSE}')."; exit 1 ;;
 esac
-case "${_GCSFUSE_ENABLE_STREAM_WRITE:-false}" in
-  true|false) ;;
-  *) echo "ERROR: _GCSFUSE_ENABLE_STREAM_WRITE must be true|false (got '${_GCSFUSE_ENABLE_STREAM_WRITE}')."; exit 1 ;;
-esac
 case "${_REUSE_DATASET_BUCKET:-false}" in
   true|false) ;;
   *) echo "ERROR: _REUSE_DATASET_BUCKET must be true|false (got '${_REUSE_DATASET_BUCKET}')."; exit 1 ;;
