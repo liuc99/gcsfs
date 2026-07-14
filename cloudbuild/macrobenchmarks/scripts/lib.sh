@@ -59,6 +59,8 @@ shared_workload_helm_args() {
       gcsfuse_mount_opts="${gcsfuse_mount_opts},enable-storage-client-library"
     fi
   fi
+  # Helm's --set / --set-string parses commas as value separators unless escaped with \,
+  local helm_gcsfuse_mount_opts="${gcsfuse_mount_opts//,/\\,}"
   SHARED_HELM_ARGS=(
     --set gcsfs.datasetPath="${dataset_path}"
     --set workload.modelId="${_MODEL_ID}"
@@ -73,7 +75,7 @@ shared_workload_helm_args() {
     --set gcsfuse.enabled="${_USE_GCSFUSE:-false}"
     --set gcsfuse.datasetBucket="${DATASET_BUCKET:-}"
     --set gcsfuse.checkpointBucket="${CHECKPOINT_BUCKET:-}"
-    --set gcsfuse.mountOptions="${gcsfuse_mount_opts}"
+    --set-string gcsfuse.mountOptions="${helm_gcsfuse_mount_opts}"
     --set lustre.enabled="${_USE_LUSTRE:-false}"
     --set lustre.datasetPvc="${_LUSTRE_DATASET_PVC:-lustre-dataset-pvc}"
     --set lustre.checkpointPvc="${_LUSTRE_CHECKPOINT_PVC:-lustre-checkpoint-pvc}"
