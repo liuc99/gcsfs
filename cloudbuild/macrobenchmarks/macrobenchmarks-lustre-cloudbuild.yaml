@@ -11,6 +11,9 @@ substitutions:
   _LUSTRE_DATASET_PVC: "lustre-dataset-pvc"
   _LUSTRE_CHECKPOINT_PVC: "lustre-checkpoint-pvc"
   _LUSTRE_CAPACITY: "12000Gi"
+  _USE_GCSFUSE: "true"
+  _GCSFUSE_ENABLE_STREAM_WRITE: "true"
+  _GCSFUSE_MOUNT_OPTIONS: "implicit-dirs"
   _NETWORK_NAME: ""
   _SUBNET_NAME: ""
   _ADDITIONAL_CHECKPOINT_PATHS: ""
@@ -73,6 +76,9 @@ steps:
       - "_NETWORK_NAME=${_NETWORK_NAME}"
       - "_SUBNET_NAME=${_SUBNET_NAME}"
       - "_ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS}"
+      - "_USE_GCSFUSE=${_USE_GCSFUSE}"
+      - "_GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE}"
+      - "_GCSFUSE_MOUNT_OPTIONS=${_GCSFUSE_MOUNT_OPTIONS}"
     args: ["cloudbuild/macrobenchmarks/scripts/init_variables.sh"]
     waitFor: ["-"]
 
@@ -176,6 +182,8 @@ steps:
       - "_USE_LUSTRE=${_USE_LUSTRE}"
       - "_LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC}"
       - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
+      - "_USE_GCSFUSE=${_USE_GCSFUSE}"
+      - "_ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS}"
     args: ["cloudbuild/macrobenchmarks/scripts/run_workload.sh"]
     waitFor: ["seed-checkpoint"]
 
