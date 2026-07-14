@@ -68,9 +68,84 @@ shared_workload_helm_args() {
     --set gcsfuse.datasetBucket="${DATASET_BUCKET:-}"
     --set gcsfuse.checkpointBucket="${CHECKPOINT_BUCKET:-}"
     --set lustre.enabled="${_USE_LUSTRE:-false}"
-    --set lustre.datasetPvc="${LUSTRE_DATASET_PVC:-lustre-dataset-pvc}"
-    --set lustre.checkpointPvc="${LUSTRE_CHECKPOINT_PVC:-lustre-checkpoint-pvc}"
+    --set lustre.datasetPvc="${_LUSTRE_DATASET_PVC:-lustre-dataset-pvc}"
+    --set lustre.checkpointPvc="${_LUSTRE_CHECKPOINT_PVC:-lustre-checkpoint-pvc}"
   )
+}
+
+setup_lustre_pvcs() {
+  if [ "${_USE_LUSTRE:-false}" != "true" ]; then
+    return 0
+  fi
+
+  local instance="${_LUSTRE_INSTANCE:-}"
+  if [ -z "$instance" ]; then
+    echo "ERROR: _USE_LUSTRE is true but _LUSTRE_INSTANCE is unset." >&2
+    return 1
+  fi
+
+  if [[ "$instance" != projects/* ]]; then
+    instance="projects/${PROJECT_ID}/locations/${_ZONE}/instances/${instance}"
+  fi
+
+  local dataset_pvc="${_LUSTRE_DATASET_PVC:-lustre-dataset-pvc}"
+  local checkpoint_pvc="${_LUSTRE_CHECKPOINT_PVC:-lustre-checkpoint-pvc}"
+  local capacity="${_LUSTRE_CAPACITY:-12000Gi}"
+
+  echo "--- Configuring Kubernetes PV and PVC for pre-existing Parallelstore instance: ${instance} ---"
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ${dataset_pvc}-pv
+spec:
+  accessModes:
+  - ReadWriteMany
+  capacity:
+    storage: ${capacity}
+  csi:
+    driver: parallelstore.csi.storage.gke.io
+    volumeHandle: ${instance}
+  persistentVolumeReclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ${dataset_pvc}
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: ${capacity}
+  volumeName: ${dataset_pvc}-pv
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ${checkpoint_pvc}-pv
+spec:
+  accessModes:
+  - ReadWriteMany
+  capacity:
+    storage: ${capacity}
+  csi:
+    driver: parallelstore.csi.storage.gke.io
+    volumeHandle: ${instance}
+  persistentVolumeReclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ${checkpoint_pvc}
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: ${capacity}
+  volumeName: ${checkpoint_pvc}-pv
+EOF
 }
 
 # Poll a JobSet until it reports Completed (return 0) or Failed/timeout (record

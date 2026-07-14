@@ -7,6 +7,10 @@ substitutions:
   _MACHINE_TYPE: "c4-standard-192"
   _ENABLE_TIER1_NETWORKING: "true"
   _USE_LUSTRE: "true"
+  _LUSTRE_INSTANCE: ""
+  _LUSTRE_DATASET_PVC: "lustre-dataset-pvc"
+  _LUSTRE_CHECKPOINT_PVC: "lustre-checkpoint-pvc"
+  _LUSTRE_CAPACITY: "12000Gi"
   _RESERVATION_AFFINITY: "any"
   _RESERVATION_NAME: ""
   _NODES: "2"
@@ -55,6 +59,10 @@ steps:
       - "_SEED_CHECKPOINT=${_SEED_CHECKPOINT}"
       - "_ENABLE_TIER1_NETWORKING=${_ENABLE_TIER1_NETWORKING}"
       - "_USE_LUSTRE=${_USE_LUSTRE}"
+      - "_LUSTRE_INSTANCE=${_LUSTRE_INSTANCE}"
+      - "_LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC}"
+      - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
+      - "_LUSTRE_CAPACITY=${_LUSTRE_CAPACITY}"
       - "_RESERVATION_AFFINITY=${_RESERVATION_AFFINITY}"
       - "_RESERVATION_NAME=${_RESERVATION_NAME}"
       - "_SIMULATED_STEP_COMPUTE_SECONDS=${_SIMULATED_STEP_COMPUTE_SECONDS}"
@@ -102,6 +110,10 @@ steps:
       - "_RESERVATION_AFFINITY=${_RESERVATION_AFFINITY}"
       - "_RESERVATION_NAME=${_RESERVATION_NAME}"
       - "_USE_LUSTRE=${_USE_LUSTRE}"
+      - "_LUSTRE_INSTANCE=${_LUSTRE_INSTANCE}"
+      - "_LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC}"
+      - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
+      - "_LUSTRE_CAPACITY=${_LUSTRE_CAPACITY}"
     args: ["cloudbuild/macrobenchmarks/scripts/create_cluster.sh"]
     waitFor: ["init-variables"]
 
@@ -125,6 +137,8 @@ steps:
       - "_SEED_CHECKPOINT=${_SEED_CHECKPOINT}"
       - "_CHECKPOINT_LOAD_PATH=${_CHECKPOINT_LOAD_PATH}"
       - "_USE_LUSTRE=${_USE_LUSTRE}"
+      - "_LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC}"
+      - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
     args: ["cloudbuild/macrobenchmarks/scripts/seed_checkpoint.sh"]
     waitFor: ["create-cluster", "create-buckets"]
 
@@ -155,6 +169,8 @@ steps:
       - "_GRAD_ACCUM=${_GRAD_ACCUM}"
       - "_DATALOADER_WORKERS=${_DATALOADER_WORKERS}"
       - "_USE_LUSTRE=${_USE_LUSTRE}"
+      - "_LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC}"
+      - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
     args: ["cloudbuild/macrobenchmarks/scripts/run_workload.sh"]
     waitFor: ["seed-checkpoint"]
 

@@ -77,3 +77,8 @@ if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
   kubectl rollout status deployment/gke-gcsfuse-sidecar-injector -n kube-system --timeout=300s || true
   kubectl rollout status daemonset/gke-gcsfuse-node -n kube-system --timeout=300s || true
 fi
+if [ "${_USE_LUSTRE:-false}" = "true" ]; then
+  echo "--- Waiting for Parallelstore CSI driver node daemonset to be ready ---"
+  kubectl rollout status daemonset/gke-parallelstore-node -n kube-system --timeout=300s || true
+  setup_lustre_pvcs
+fi

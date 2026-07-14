@@ -49,6 +49,11 @@ esac
 if [ "${_USE_GCSFUSE:-false}" = "true" ] && [ "${_USE_LUSTRE:-false}" = "true" ]; then
   echo "ERROR: _USE_GCSFUSE and _USE_LUSTRE cannot both be 'true' simultaneously."; exit 1
 fi
+if [ "${_USE_LUSTRE:-false}" = "true" ]; then
+  if [ -z "${_LUSTRE_INSTANCE}" ]; then
+    echo "ERROR: _LUSTRE_INSTANCE must be specified when _USE_LUSTRE is 'true'."; exit 1
+  fi
+fi
 # Reject an unknown reservation affinity toggle before provisioning anything.
 case "${_RESERVATION_AFFINITY:-any}" in
   any|specific|none|any-reservation-then-fail|ANY_RESERVATION|SPECIFIC_RESERVATION|NO_RESERVATION) ;;
