@@ -521,8 +521,50 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                         if not os.path.islink(fp):
                             total_size += os.path.getsize(fp)
                 return total_size
-        fs, path = fsspec.core.url_to_fs(filepath)
-        return int(fs.du(path))
+
+        # Check temporary or partial files (e.g. filepath + ".part", ".tmp")
+        for ext in (".part", ".tmp", ".temp", ".partial"):
+            candidate = filepath + ext
+            if os.path.exists(candidate):
+                if os.path.isfile(candidate):
+                    return os.path.getsize(candidate)
+                elif os.path.isdir(candidate):
+                    total_size = 0
+                    for dirpath, _, filenames in os.walk(candidate):
+                        for f in filenames:
+                            fp = os.path.join(dirpath, f)
+                            if not os.path.islink(fp):
+                                total_size += os.path.getsize(fp)
+                    return total_size
+
+        # Fallback for parent directory: measure any partial/tmp files in parent dir
+        parent_dir = os.path.dirname(filepath)
+        if os.path.exists(parent_dir) and os.path.isdir(parent_dir):
+            base_name = os.path.basename(filepath)
+            base_prefix = base_name.split(".")[0] if "." in base_name else base_name
+            total_size = 0
+            try:
+                for f in os.listdir(parent_dir):
+                    if base_prefix in f or f.startswith(".") or f.endswith((".part", ".tmp", ".temp", ".partial")):
+                        fp = os.path.join(parent_dir, f)
+                        if os.path.isfile(fp):
+                            total_size += os.path.getsize(fp)
+                        elif os.path.isdir(fp):
+                            for dirpath, _, filenames in os.walk(fp):
+                                for fn in filenames:
+                                    sub_fp = os.path.join(dirpath, fn)
+                                    if not os.path.islink(sub_fp):
+                                        total_size += os.path.getsize(sub_fp)
+            except Exception:
+                pass
+            if total_size > 0:
+                return total_size
+
+        try:
+            fs, path = fsspec.core.url_to_fs(filepath)
+            return int(fs.du(path))
+        except Exception:
+            return 0
 
     def _remove_checkpoint(self, trainer, filepath):
         is_sharded_fsdp = (
