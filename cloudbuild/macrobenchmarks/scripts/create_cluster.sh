@@ -35,7 +35,7 @@ gcloud container clusters create "$CLUSTER_NAME" \
   --scopes="https://www.googleapis.com/auth/cloud-platform" \
   --private-ipv6-google-access-type=outbound-only \
   --network="${NETWORK_NAME}" --subnetwork="${SUBNET_NAME}" \
-  --addons=GcsFuseCsiDriver \
+  --addons=GcsFuseCsiDriver,ParallelstoreCsiDriver \
   --workload-pool="${PROJECT_ID}.svc.id.goog" \
   --no-enable-autoupgrade --quiet
 NODE_POOL_ARGS=(

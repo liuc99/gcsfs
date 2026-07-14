@@ -65,3 +65,11 @@ gcsfuse:
   checkpointBucket: ""
   mountPathDataset: "/gcs/dataset"
   mountPathCheckpoint: "/gcs/checkpoints"
+
+lustre:
+  enabled: false
+  datasetPvc: ""
+  checkpointPvc: ""
+  mountPathDataset: "/lustre/dataset"
+  mountPathCheckpoint: "/lustre/checkpoints"
+

@@ -41,6 +41,14 @@ case "${_USE_GCSFUSE:-false}" in
   true|false) ;;
   *) echo "ERROR: _USE_GCSFUSE must be true|false (got '${_USE_GCSFUSE}')."; exit 1 ;;
 esac
+# Reject an unknown Lustre toggle before provisioning anything.
+case "${_USE_LUSTRE:-false}" in
+  true|false) ;;
+  *) echo "ERROR: _USE_LUSTRE must be true|false (got '${_USE_LUSTRE}')."; exit 1 ;;
+esac
+if [ "${_USE_GCSFUSE:-false}" = "true" ] && [ "${_USE_LUSTRE:-false}" = "true" ]; then
+  echo "ERROR: _USE_GCSFUSE and _USE_LUSTRE cannot both be 'true' simultaneously."; exit 1
+fi
 # Reject an unknown reservation affinity toggle before provisioning anything.
 case "${_RESERVATION_AFFINITY:-any}" in
   any|specific|none|any-reservation-then-fail|ANY_RESERVATION|SPECIFIC_RESERVATION|NO_RESERVATION) ;;

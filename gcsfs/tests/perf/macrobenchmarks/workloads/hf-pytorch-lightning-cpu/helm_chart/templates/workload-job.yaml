@@ -80,6 +80,14 @@ spec:
                   bucketName: "{{ $root.Values.gcsfuse.checkpointBucket }}"
                   mountOptions: "implicit-dirs"
             {{- end }}
+            {{- if $root.Values.lustre.enabled }}
+            - name: lustre-dataset
+              persistentVolumeClaim:
+                claimName: "{{ $root.Values.lustre.datasetPvc }}"
+            - name: lustre-checkpoint
+              persistentVolumeClaim:
+                claimName: "{{ $root.Values.lustre.checkpointPvc }}"
+            {{- end }}
             containers:
             - name: workload
               image: "{{ $root.Values.workload.image }}"
@@ -160,4 +168,10 @@ spec:
                   mountPath: {{ $root.Values.gcsfuse.mountPathDataset }}
                 - name: gcsfuse-checkpoint
                   mountPath: {{ $root.Values.gcsfuse.mountPathCheckpoint }}
+                {{- end }}
+                {{- if $root.Values.lustre.enabled }}
+                - name: lustre-dataset
+                  mountPath: {{ $root.Values.lustre.mountPathDataset }}
+                - name: lustre-checkpoint
+                  mountPath: {{ $root.Values.lustre.mountPathCheckpoint }}
                 {{- end }}

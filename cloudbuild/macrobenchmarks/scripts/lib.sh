@@ -50,6 +50,8 @@ shared_workload_helm_args() {
   local dataset_path="${RUN_DATASET_PATH:-${_DATASET_PATH}}"
   if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
     dataset_path="/gcs/dataset"
+  elif [ "${_USE_LUSTRE:-false}" = "true" ]; then
+    dataset_path="/lustre/dataset"
   fi
   SHARED_HELM_ARGS=(
     --set gcsfs.datasetPath="${dataset_path}"
@@ -65,6 +67,9 @@ shared_workload_helm_args() {
     --set gcsfuse.enabled="${_USE_GCSFUSE:-false}"
     --set gcsfuse.datasetBucket="${DATASET_BUCKET:-}"
     --set gcsfuse.checkpointBucket="${CHECKPOINT_BUCKET:-}"
+    --set lustre.enabled="${_USE_LUSTRE:-false}"
+    --set lustre.datasetPvc="${LUSTRE_DATASET_PVC:-lustre-dataset-pvc}"
+    --set lustre.checkpointPvc="${LUSTRE_CHECKPOINT_PVC:-lustre-checkpoint-pvc}"
   )
 }
 
