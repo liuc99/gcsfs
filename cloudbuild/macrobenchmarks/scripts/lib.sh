@@ -119,7 +119,8 @@ setup_lustre_pvcs() {
   local capacity="${_LUSTRE_CAPACITY:-12000Gi}"
 
   echo "--- Configuring Kubernetes PV and PVC for pre-existing Parallelstore instance: ${instance} ---"
-  cat <<EOF | kubectl apply -f -
+  if [ -n "$dataset_pvc" ] && [ "$dataset_pvc" != "none" ]; then
+    cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -147,7 +148,11 @@ spec:
     requests:
       storage: ${capacity}
   volumeName: ${dataset_pvc}-pv
----
+EOF
+  fi
+
+  if [ -n "$checkpoint_pvc" ] && [ "$checkpoint_pvc" != "none" ]; then
+    cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -176,6 +181,7 @@ spec:
       storage: ${capacity}
   volumeName: ${checkpoint_pvc}-pv
 EOF
+  fi
 }
 
 # Poll a JobSet until it reports Completed (return 0) or Failed/timeout (record
