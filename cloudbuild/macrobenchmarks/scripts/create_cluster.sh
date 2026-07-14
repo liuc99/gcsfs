@@ -72,13 +72,27 @@ gcloud iam service-accounts add-iam-policy-binding "${_GKE_SERVICE_ACCOUNT}" \
 kubectl annotate serviceaccount default "iam.gke.io/gcp-service-account=${_GKE_SERVICE_ACCOUNT}" --overwrite
 kubectl apply --server-side -f "https://github.com/kubernetes-sigs/jobset/releases/download/${_JOBSET_VERSION}/manifests.yaml"
 kubectl rollout status deployment/jobset-controller-manager -n jobset-system --timeout=300s
+wait_for_resource_creation() {
+  local kind_name="$1"
+  local namespace="$2"
+  local timeout=60
+  local elapsed=0
+  until kubectl get "$kind_name" -n "$namespace" >/dev/null 2>&1 || [ "$elapsed" -ge "$timeout" ]; do
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+}
+
 if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
   echo "--- Waiting for GCSFuse CSI driver sidecar injector and node driver to be ready ---"
+  wait_for_resource_creation deployment/gke-gcsfuse-sidecar-injector kube-system
   kubectl rollout status deployment/gke-gcsfuse-sidecar-injector -n kube-system --timeout=300s || true
+  wait_for_resource_creation daemonset/gke-gcsfuse-node kube-system
   kubectl rollout status daemonset/gke-gcsfuse-node -n kube-system --timeout=300s || true
 fi
 if [ "${_USE_LUSTRE:-false}" = "true" ]; then
   echo "--- Waiting for Parallelstore CSI driver node daemonset to be ready ---"
+  wait_for_resource_creation daemonset/gke-parallelstore-node kube-system
   kubectl rollout status daemonset/gke-parallelstore-node -n kube-system --timeout=300s || true
   setup_lustre_pvcs
 fi
