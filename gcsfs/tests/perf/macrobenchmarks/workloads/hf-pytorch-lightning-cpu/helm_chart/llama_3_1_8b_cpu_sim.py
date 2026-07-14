@@ -35,6 +35,7 @@ like ``ddp``) selects the parallel-training strategy. A resume
 import logging
 import os
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -404,7 +405,45 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
         def _do_save():
             save_start = time.perf_counter()
-            super(LoggedModelCheckpoint, self)._save_checkpoint(trainer, filepath)
+            stop_progress_event = threading.Event()
+
+            def _progress_ticker():
+                interval = float(os.getenv("CHECKPOINT_PROGRESS_INTERVAL_SECONDS", "5.0"))
+                start_t = time.perf_counter()
+                while not stop_progress_event.wait(interval):
+                    elapsed = time.perf_counter() - start_t
+                    if is_writer:
+                        try:
+                            curr_bytes = self._measure_checkpoint_bytes(filepath)
+                            curr_mb = curr_bytes / (1024 * 1024)
+                            curr_gb = curr_bytes / (1024 * 1024 * 1024)
+                            curr_rate = curr_mb / elapsed if elapsed > 0 else 0
+                            logging.info(
+                                "[BENCHMARK] Checkpoint Upload Progress : Rank : %d : Step : %d : Elapsed : %.1fs : Size : %d bytes (%.2f MB / %.2f GB) : Rate : %.2f MB/s : Path : %s",
+                                trainer.global_rank,
+                                trainer.global_step,
+                                elapsed,
+                                curr_bytes,
+                                curr_mb,
+                                curr_gb,
+                                curr_rate,
+                                filepath,
+                            )
+                        except Exception:
+                            pass
+
+            ticker_thread = None
+            if is_writer:
+                ticker_thread = threading.Thread(target=_progress_ticker, daemon=True)
+                ticker_thread.start()
+
+            try:
+                super(LoggedModelCheckpoint, self)._save_checkpoint(trainer, filepath)
+            finally:
+                stop_progress_event.set()
+                if ticker_thread is not None:
+                    ticker_thread.join(timeout=1.0)
+
             duration = time.perf_counter() - save_start
 
             size_bytes = None
