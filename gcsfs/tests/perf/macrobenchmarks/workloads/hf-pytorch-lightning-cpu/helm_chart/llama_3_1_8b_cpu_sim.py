@@ -418,11 +418,13 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                             curr_mb = curr_bytes / (1024 * 1024)
                             curr_gb = curr_bytes / (1024 * 1024 * 1024)
                             curr_rate = curr_mb / elapsed if elapsed > 0 else 0
+                            status = "Uploading/Writing" if curr_bytes > 0 else "In-Memory Serialization (CPU pickling state_dict)"
                             logging.info(
-                                "[BENCHMARK] Checkpoint Upload Progress : Rank : %d : Step : %d : Elapsed : %.1fs : Size : %d bytes (%.2f MB / %.2f GB) : Rate : %.2f MB/s : Path : %s",
+                                "[BENCHMARK] Checkpoint Upload Progress : Rank : %d : Step : %d : Elapsed : %.1fs : Status : %s : Size : %d bytes (%.2f MB / %.2f GB) : Rate : %.2f MB/s : Path : %s",
                                 trainer.global_rank,
                                 trainer.global_step,
                                 elapsed,
+                                status,
                                 curr_bytes,
                                 curr_mb,
                                 curr_gb,
