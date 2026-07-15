@@ -466,10 +466,24 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 ticker_thread.start()
 
             try:
-                if is_writer and staged_tmp_file and os.path.exists(staged_tmp_file):
-                    self._copy_staged_checkpoint(staged_tmp_file, target_filepath)
-                else:
-                    super(LoggedModelCheckpoint, self)._save_checkpoint(trainer, target_filepath)
+                if is_writer:
+                    if staged_tmp_file and os.path.exists(staged_tmp_file):
+                        self._copy_staged_checkpoint(staged_tmp_file, target_filepath)
+                    elif target_filepath.startswith("gs://"):
+                        stage_dir = "/dev/shm" if os.path.exists("/dev/shm") else None
+                        tfd, tmp_local = tempfile.mkstemp(prefix="direct_ckpt_", suffix=".ckpt", dir=stage_dir)
+                        os.close(tfd)
+                        try:
+                            super(LoggedModelCheckpoint, self)._save_checkpoint(trainer, tmp_local)
+                            self._copy_staged_checkpoint(tmp_local, target_filepath)
+                        finally:
+                            if os.path.exists(tmp_local):
+                                try:
+                                    os.remove(tmp_local)
+                                except Exception:
+                                    pass
+                    else:
+                        super(LoggedModelCheckpoint, self)._save_checkpoint(trainer, target_filepath)
             finally:
                 stop_progress_event.set()
                 if ticker_thread is not None:
