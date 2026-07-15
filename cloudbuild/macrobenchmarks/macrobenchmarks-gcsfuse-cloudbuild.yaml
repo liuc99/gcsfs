@@ -12,6 +12,8 @@ substitutions:
   _ASYNC_CHECKPOINT: "false"
   _USE_LUSTRE: "false"
   _LUSTRE_INSTANCE: ""
+  _LUSTRE_IP: ""
+  _LUSTRE_FILESYSTEM: ""
   _LUSTRE_DATASET_PVC: "lustre-dataset-pvc"
   _LUSTRE_CHECKPOINT_PVC: "lustre-checkpoint-pvc"
   _LUSTRE_CAPACITY: "12000Gi"
@@ -100,6 +102,8 @@ steps:
       - "_ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS}"
       - "_USE_LUSTRE=${_USE_LUSTRE}"
       - "_LUSTRE_INSTANCE=${_LUSTRE_INSTANCE}"
+      - "_LUSTRE_IP=${_LUSTRE_IP}"
+      - "_LUSTRE_FILESYSTEM=${_LUSTRE_FILESYSTEM}"
       - "_LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC}"
       - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
       - "_LUSTRE_CAPACITY=${_LUSTRE_CAPACITY}"
@@ -144,6 +148,13 @@ steps:
       - "_ENABLE_TIER1_NETWORKING=${_ENABLE_TIER1_NETWORKING}"
       - "_RESERVATION_AFFINITY=${_RESERVATION_AFFINITY}"
       - "_RESERVATION_NAME=${_RESERVATION_NAME}"
+      - "_USE_LUSTRE=${_USE_LUSTRE}"
+      - "_LUSTRE_INSTANCE=${_LUSTRE_INSTANCE}"
+      - "_LUSTRE_IP=${_LUSTRE_IP}"
+      - "_LUSTRE_FILESYSTEM=${_LUSTRE_FILESYSTEM}"
+      - "_LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC}"
+      - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
+      - "_LUSTRE_CAPACITY=${_LUSTRE_CAPACITY}"
     args: ["cloudbuild/macrobenchmarks/scripts/create_cluster.sh"]
     waitFor: ["init-variables"]
 
@@ -168,6 +179,9 @@ steps:
       - "_CHECKPOINT_LOAD_PATH=${_CHECKPOINT_LOAD_PATH}"
       - "_GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE}"
       - "_GCSFUSE_MOUNT_OPTIONS=${_GCSFUSE_MOUNT_OPTIONS}"
+      - "_USE_LUSTRE=${_USE_LUSTRE}"
+      - "_LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC}"
+      - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
     args: ["cloudbuild/macrobenchmarks/scripts/seed_checkpoint.sh"]
     waitFor: ["create-cluster", "create-buckets"]
 
@@ -199,6 +213,11 @@ steps:
       - "_DATALOADER_WORKERS=${_DATALOADER_WORKERS}"
       - "_GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE}"
       - "_GCSFUSE_MOUNT_OPTIONS=${_GCSFUSE_MOUNT_OPTIONS}"
+      - "_USE_LUSTRE=${_USE_LUSTRE}"
+      - "_LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC}"
+      - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
+      - "_USE_GCSFUSE=${_USE_GCSFUSE}"
+      - "_ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS}"
     args: ["cloudbuild/macrobenchmarks/scripts/run_workload.sh"]
     waitFor: ["seed-checkpoint"]
 
@@ -228,6 +247,7 @@ steps:
       - "_PER_DEVICE_BATCH=${_PER_DEVICE_BATCH}"
       - "_GRAD_ACCUM=${_GRAD_ACCUM}"
       - "_DATALOADER_WORKERS=${_DATALOADER_WORKERS}"
+      - "_USE_LUSTRE=${_USE_LUSTRE}"
     args: ["cloudbuild/macrobenchmarks/scripts/scrape_metrics.sh"]
     waitFor: ["run-workload"]
 
