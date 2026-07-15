@@ -427,7 +427,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             last_bytes = [0]
 
             def _progress_ticker():
-                interval = float(os.getenv("CHECKPOINT_PROGRESS_INTERVAL_SECONDS", "5.0"))
+                interval = float(os.getenv("CHECKPOINT_PROGRESS_INTERVAL_SECONDS", "1.0"))
                 while not stop_progress_event.wait(interval):
                     now_t = time.perf_counter()
                     total_elapsed = now_t - save_start
