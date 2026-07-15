@@ -389,9 +389,19 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         start_time_wall = time.time()
         start_time_perf = time.perf_counter()
 
+        if target_filepath.startswith("gs://"):
+            backend_label = "GCSFS"
+        elif "/lustre" in target_filepath:
+            backend_label = "Lustre"
+        elif "/gcs" in target_filepath:
+            backend_label = "GCSFuse"
+        else:
+            backend_label = "POSIX"
+
         if is_writer:
             logging.info(
-                "[BENCHMARK] Checkpoint Save (Writer Rank %d) : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
+                "[BENCHMARK] [%s] Checkpoint Save (Writer Rank %d) : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
+                backend_label,
                 trainer.global_rank,
                 trainer.global_rank,
                 trainer.global_step,
@@ -400,7 +410,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             )
         else:
             logging.info(
-                "[BENCHMARK] Checkpoint Save (Non-Writing Rank %d - skipped data upload) : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
+                "[BENCHMARK] [%s] Checkpoint Save (Non-Writing Rank %d - skipped data upload) : Rank: %d : Step: %d : Start time: %f seconds: Path: %s",
+                backend_label,
                 trainer.global_rank,
                 trainer.global_rank,
                 trainer.global_step,
@@ -447,7 +458,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                             last_bytes[0] = curr_bytes
 
                             logging.info(
-                                "[BENCHMARK] Checkpoint Upload Progress : Rank : %d : Step : %d : Total Elapsed : %.1fs : Status : %s : Size : %d bytes (%.2f MB / %.2f GB) : Instant Rate : %.2f MB/s : Upload Rate : %.2f MB/s : Path : %s",
+                                "[BENCHMARK] [%s] Checkpoint Upload Progress : Rank : %d : Step : %d : Total Elapsed : %.1fs : Status : %s : Size : %d bytes (%.2f MB / %.2f GB) : Instant Rate : %.2f MB/s : Upload Rate : %.2f MB/s : Path : %s",
+                                backend_label,
                                 trainer.global_rank,
                                 trainer.global_step,
                                 total_elapsed,
@@ -518,8 +530,9 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 upload_gb_s = size_gb / upload_duration if upload_duration > 0 else overall_gb_s
 
                 logging.info(
-                    "[BENCHMARK] Finished saving checkpoint (Writer Rank %d) to %s in %.2f seconds (Upload Time: %.2f seconds) for global_step %d from rank %d "
+                    "[BENCHMARK] [%s] Finished saving checkpoint (Writer Rank %d) to %s in %.2f seconds (Upload Time: %.2f seconds) for global_step %d from rank %d "
                     "(Size: %d bytes / %.2f MB / %.2f GB, Network Upload Throughput: %.2f MB/s / %.2f GB/s, Overall Throughput: %.2f MB/s / %.2f GB/s)",
+                    backend_label,
                     trainer.global_rank,
                     target_filepath,
                     total_duration,
@@ -535,7 +548,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     overall_gb_s,
                 )
                 logging.info(
-                    "[BENCHMARK] Checkpoint Size : Rank : %d : Step : %d : Bytes : %d : Path: %s",
+                    "[BENCHMARK] [%s] Checkpoint Size : Rank : %d : Step : %d : Bytes : %d : Path: %s",
+                    backend_label,
                     trainer.global_rank,
                     trainer.global_step,
                     size_bytes,
@@ -543,7 +557,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 )
             else:
                 logging.info(
-                    "[BENCHMARK] Finished saving checkpoint (Non-Writing Rank %d - skipped data upload) to %s in %.2f seconds for global_step %d from rank %d",
+                    "[BENCHMARK] [%s] Finished saving checkpoint (Non-Writing Rank %d - skipped data upload) to %s in %.2f seconds for global_step %d from rank %d",
+                    backend_label,
                     trainer.global_rank,
                     target_filepath,
                     total_duration,
