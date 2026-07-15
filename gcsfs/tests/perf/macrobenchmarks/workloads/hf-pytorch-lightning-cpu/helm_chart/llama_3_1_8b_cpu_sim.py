@@ -359,7 +359,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.async_checkpoint = os.getenv("ASYNC_CHECKPOINT", "false").lower() == "true"
+        self.async_checkpoint = os.getenv("ASYNC_CHECKPOINT", "true").lower() == "true"
         self._executor = ThreadPoolExecutor(max_workers=1) if self.async_checkpoint else None
         self._last_future = None
 
