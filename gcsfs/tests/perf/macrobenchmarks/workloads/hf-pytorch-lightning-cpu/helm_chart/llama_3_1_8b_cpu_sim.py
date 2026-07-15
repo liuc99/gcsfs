@@ -377,8 +377,10 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
         if dst_path.startswith("gs://"):
             fs, path = fsspec.core.url_to_fs(dst_path)
-            with open(src_path, "rb") as f_src, fs.open(path, "wb") as f_dst:
-                shutil.copyfileobj(f_src, f_dst, length=64 * 1024 * 1024)
+            try:
+                fs.put_file(src_path, path)
+            except Exception:
+                fs.put(src_path, path)
         else:
             shutil.copyfile(src_path, tmp_dst)
             os.replace(tmp_dst, dst_path)
