@@ -423,6 +423,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     if is_writer:
                         try:
                             curr_bytes = self._measure_checkpoint_bytes(target_filepath)
+                            if (curr_bytes == 0 or curr_bytes is None) and os.path.exists(target_filepath + ".part"):
+                                curr_bytes = self._measure_checkpoint_bytes(target_filepath + ".part")
                             curr_mb = curr_bytes / (1024 * 1024)
                             curr_gb = curr_bytes / (1024 * 1024 * 1024)
 
