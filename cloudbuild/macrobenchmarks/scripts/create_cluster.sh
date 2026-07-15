@@ -74,6 +74,12 @@ gcloud iam service-accounts add-iam-policy-binding "${_GKE_SERVICE_ACCOUNT}" \
   --member="serviceAccount:${PROJECT_ID}.svc.id.goog[default/default]" \
   --quiet || true
 kubectl annotate serviceaccount default "iam.gke.io/gcp-service-account=${_GKE_SERVICE_ACCOUNT}" --overwrite
+gcloud artifacts repositories add-iam-policy-binding benchmarks \
+  --location="${REGION:-us-central1}" \
+  --project="${PROJECT_ID}" \
+  --member="serviceAccount:${_GKE_SERVICE_ACCOUNT}" \
+  --role="roles/artifactregistry.reader" \
+  --quiet || true
 kubectl apply --server-side -f "https://github.com/kubernetes-sigs/jobset/releases/download/${_JOBSET_VERSION}/manifests.yaml"
 kubectl rollout status deployment/jobset-controller-manager -n jobset-system --timeout=300s
 wait_for_resource_creation() {
