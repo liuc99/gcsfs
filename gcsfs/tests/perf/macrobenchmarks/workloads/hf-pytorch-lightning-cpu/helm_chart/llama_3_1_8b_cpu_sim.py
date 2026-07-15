@@ -427,7 +427,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             last_bytes = [0]
 
             def _progress_ticker():
-                interval = float(os.getenv("CHECKPOINT_PROGRESS_INTERVAL_SECONDS", "1.0"))
+                interval = float(os.getenv("CHECKPOINT_PROGRESS_INTERVAL_SECONDS", "5.0"))
                 while not stop_progress_event.wait(interval):
                     now_t = time.perf_counter()
                     total_elapsed = now_t - save_start
@@ -646,17 +646,28 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 torch.distributed.barrier()
 
     @staticmethod
-    def _measure_checkpoint_bytes(filepath):
+    def _get_effective_file_bytes(fp):
+        try:
+            st = os.stat(fp)
+            if hasattr(st, "st_blocks") and st.st_blocks > 0:
+                blocks_bytes = st.st_blocks * 512
+                return min(st.st_size, blocks_bytes)
+            return st.st_size
+        except Exception:
+            return 0
+
+    @classmethod
+    def _measure_checkpoint_bytes(cls, filepath):
         if os.path.exists(filepath):
             if os.path.isfile(filepath):
-                return os.path.getsize(filepath)
+                return cls._get_effective_file_bytes(filepath)
             elif os.path.isdir(filepath):
                 total_size = 0
                 for dirpath, _, filenames in os.walk(filepath):
                     for f in filenames:
                         fp = os.path.join(dirpath, f)
                         if not os.path.islink(fp):
-                            total_size += os.path.getsize(fp)
+                            total_size += cls._get_effective_file_bytes(fp)
                 return total_size
 
         # Check temporary or partial files (e.g. filepath + ".part", ".tmp")
@@ -664,14 +675,14 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             candidate = filepath + ext
             if os.path.exists(candidate):
                 if os.path.isfile(candidate):
-                    return os.path.getsize(candidate)
+                    return cls._get_effective_file_bytes(candidate)
                 elif os.path.isdir(candidate):
                     total_size = 0
                     for dirpath, _, filenames in os.walk(candidate):
                         for f in filenames:
                             fp = os.path.join(dirpath, f)
                             if not os.path.islink(fp):
-                                total_size += os.path.getsize(fp)
+                                total_size += cls._get_effective_file_bytes(fp)
                     return total_size
 
         # Fallback for parent directory: measure any partial/tmp files in parent dir
