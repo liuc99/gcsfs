@@ -634,6 +634,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             for i, target_path in enumerate(all_targets):
                 is_last = (i == len(all_targets) - 1)
                 self._save_to_single_target(trainer, target_path, is_writer, staged_tmp_file, is_last_target=is_last)
+                if torch.distributed.is_available() and torch.distributed.is_initialized():
+                    torch.distributed.barrier()
         finally:
             if staged_tmp_file and os.path.exists(staged_tmp_file):
                 try:
