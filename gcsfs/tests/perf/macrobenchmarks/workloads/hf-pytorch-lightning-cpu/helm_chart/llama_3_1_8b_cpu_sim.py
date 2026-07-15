@@ -616,13 +616,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             for i, target_path in enumerate(all_targets):
                 is_last = (i == len(all_targets) - 1)
                 self._save_to_single_target(trainer, target_path, is_writer, staged_tmp_file, is_last_target=is_last)
-        except Exception:
+        finally:
             if staged_tmp_file and os.path.exists(staged_tmp_file):
                 try:
                     os.remove(staged_tmp_file)
                 except Exception:
                     pass
-            raise
+            if torch.is_initialized() if hasattr(torch, "is_initialized") else False:
+                pass
+            if torch.distributed.is_available() and torch.distributed.is_initialized():
+                torch.distributed.barrier()
 
     @staticmethod
     def _measure_checkpoint_bytes(filepath):
