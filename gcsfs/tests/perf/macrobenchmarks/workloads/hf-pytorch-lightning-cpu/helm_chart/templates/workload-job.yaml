@@ -160,6 +160,7 @@ spec:
               - |
                 echo "Pod on $(hostname --fqdn) is running"
                 echo "Pod is assigned job index of $JOB_COMPLETION_INDEX"
+                sleep 10
                 bash /workload/launcher/launch-workload.sh
               volumeMounts:
                 - name: workload-configuration
