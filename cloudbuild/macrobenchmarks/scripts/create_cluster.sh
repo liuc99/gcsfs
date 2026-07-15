@@ -94,7 +94,19 @@ if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
 fi
 if [ "${_USE_LUSTRE:-false}" = "true" ]; then
   echo "--- Waiting for Managed Lustre CSI driver node daemonset to be ready ---"
-  wait_for_resource_creation daemonset/lustre-csi-node kube-system
-  kubectl rollout status daemonset/lustre-csi-node -n kube-system --timeout=300s || true
+  ds_name=""
+  for _ in $(seq 1 60); do
+    ds_name=$(kubectl get daemonset -n kube-system -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep -i lustre | head -1 || echo "")
+    if [ -n "$ds_name" ]; then
+      break
+    fi
+    sleep 2
+  done
+  if [ -n "$ds_name" ]; then
+    echo "Found Lustre CSI daemonset: ${ds_name}"
+    kubectl rollout status "daemonset/${ds_name}" -n kube-system --timeout=300s || true
+  else
+    echo "WARNING: Could not find Lustre CSI daemonset in kube-system; proceeding with setup_lustre_pvcs."
+  fi
   setup_lustre_pvcs
 fi

@@ -124,20 +124,23 @@ setup_lustre_pvcs() {
     instance_name=$(echo "$raw_instance" | cut -d'/' -f6)
   fi
 
-  local lustre_json
-  lustre_json=$(gcloud alpha lustre instances describe "$instance_name" --location="$zone" --project="$proj" --format="json" 2>/dev/null || echo "")
-  if [ -z "$lustre_json" ]; then
-    echo "ERROR: Could not fetch Managed Lustre instance info for ${instance_name} in ${proj}/${zone}." >&2
-    return 1
-  fi
-
-  local mount_pt fs ip
-  mount_pt=$(echo "$lustre_json" | jq -r '.mountPoint // empty')
-  fs=$(echo "$lustre_json" | jq -r '.filesystem // empty')
-  ip=$(echo "$mount_pt" | cut -d'@' -f1)
+  local ip="${_LUSTRE_IP:-}"
+  local fs="${_LUSTRE_FILESYSTEM:-}"
 
   if [ -z "$ip" ] || [ -z "$fs" ]; then
-    echo "ERROR: Failed to extract IP or filesystem from Managed Lustre metadata for ${instance_name}." >&2
+    local lustre_json
+    lustre_json=$(gcloud alpha lustre instances describe "$instance_name" --location="$zone" --project="$proj" --format="json" 2>/dev/null || echo "")
+    if [ -n "$lustre_json" ]; then
+      local mount_pt
+      mount_pt=$(echo "$lustre_json" | jq -r '.mountPoint // empty')
+      fs=$(echo "$lustre_json" | jq -r '.filesystem // empty')
+      ip=$(echo "$mount_pt" | cut -d'@' -f1)
+    fi
+  fi
+
+  if [ -z "$ip" ] || [ -z "$fs" ]; then
+    echo "ERROR: Could not determine IP or filesystem for Managed Lustre instance ${instance_name} in ${proj}/${zone}." >&2
+    echo "Hint: You can provide _LUSTRE_IP and _LUSTRE_FILESYSTEM environment variables (e.g. _LUSTRE_IP=10.50.2.5 _LUSTRE_FILESYSTEM=cltest01)." >&2
     return 1
   fi
 
