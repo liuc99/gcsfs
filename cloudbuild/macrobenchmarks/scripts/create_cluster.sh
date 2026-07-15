@@ -39,7 +39,7 @@ gcloud container clusters create "$CLUSTER_NAME" \
   --scopes="https://www.googleapis.com/auth/cloud-platform" \
   --private-ipv6-google-access-type=outbound-only \
   --network="${NETWORK_NAME}" --subnetwork="${SUBNET_NAME}" \
-  --addons=GcsFuseCsiDriver,ParallelstoreCsiDriver \
+  --addons=GcsFuseCsiDriver,LustreCsiDriver \
   --workload-pool="${PROJECT_ID}.svc.id.goog" \
   --no-enable-autoupgrade --quiet
 NODE_POOL_ARGS=(
@@ -93,8 +93,8 @@ if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
   kubectl rollout status daemonset/gcsfusecsi-node -n kube-system --timeout=300s || true
 fi
 if [ "${_USE_LUSTRE:-false}" = "true" ]; then
-  echo "--- Waiting for Parallelstore CSI driver node daemonset to be ready ---"
-  wait_for_resource_creation daemonset/parallelstore-csi-node kube-system
-  kubectl rollout status daemonset/parallelstore-csi-node -n kube-system --timeout=300s || true
+  echo "--- Waiting for Managed Lustre CSI driver node daemonset to be ready ---"
+  wait_for_resource_creation daemonset/lustre-csi-node kube-system
+  kubectl rollout status daemonset/lustre-csi-node -n kube-system --timeout=300s || true
   setup_lustre_pvcs
 fi

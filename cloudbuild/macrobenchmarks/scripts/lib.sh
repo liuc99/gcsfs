@@ -104,21 +104,46 @@ setup_lustre_pvcs() {
     return 0
   fi
 
-  local instance="${_LUSTRE_INSTANCE:-}"
-  if [ -z "$instance" ]; then
+  local raw_instance="${_LUSTRE_INSTANCE:-}"
+  if [ -z "$raw_instance" ]; then
     echo "ERROR: _USE_LUSTRE is true but _LUSTRE_INSTANCE is unset." >&2
     return 1
-  fi
-
-  if [[ "$instance" != projects/* ]]; then
-    instance="projects/${PROJECT_ID}/locations/${_ZONE}/instances/${instance}"
   fi
 
   local dataset_pvc="${_LUSTRE_DATASET_PVC:-lustre-dataset-pvc}"
   local checkpoint_pvc="${_LUSTRE_CHECKPOINT_PVC:-lustre-checkpoint-pvc}"
   local capacity="${_LUSTRE_CAPACITY:-12000Gi}"
 
-  echo "--- Configuring Kubernetes PV and PVC for pre-existing Parallelstore instance: ${instance} ---"
+  local proj="${PROJECT_ID}"
+  local zone="${_ZONE}"
+  local instance_name="${raw_instance}"
+
+  if [[ "$raw_instance" == projects/* ]]; then
+    proj=$(echo "$raw_instance" | cut -d'/' -f2)
+    zone=$(echo "$raw_instance" | cut -d'/' -f4)
+    instance_name=$(echo "$raw_instance" | cut -d'/' -f6)
+  fi
+
+  local lustre_json
+  lustre_json=$(gcloud alpha lustre instances describe "$instance_name" --location="$zone" --project="$proj" --format="json" 2>/dev/null || echo "")
+  if [ -z "$lustre_json" ]; then
+    echo "ERROR: Could not fetch Managed Lustre instance info for ${instance_name} in ${proj}/${zone}." >&2
+    return 1
+  fi
+
+  local mount_pt fs ip
+  mount_pt=$(echo "$lustre_json" | jq -r '.mountPoint // empty')
+  fs=$(echo "$lustre_json" | jq -r '.filesystem // empty')
+  ip=$(echo "$mount_pt" | cut -d'@' -f1)
+
+  if [ -z "$ip" ] || [ -z "$fs" ]; then
+    echo "ERROR: Failed to extract IP or filesystem from Managed Lustre metadata for ${instance_name}." >&2
+    return 1
+  fi
+
+  local volume_handle="${proj}/${zone}/${instance_name}"
+  echo "--- Configuring Kubernetes PV and PVC for Managed Lustre instance: ${volume_handle} (IP: ${ip}, FS: ${fs}) ---"
+
   if [ -n "$dataset_pvc" ] && [ "$dataset_pvc" != "none" ]; then
     cat <<EOF | kubectl apply -f -
 apiVersion: v1
@@ -131,8 +156,11 @@ spec:
   capacity:
     storage: ${capacity}
   csi:
-    driver: parallelstore.csi.storage.gke.io
-    volumeHandle: ${instance}
+    driver: lustre.csi.storage.gke.io
+    volumeHandle: ${volume_handle}
+    volumeAttributes:
+      ip: "${ip}"
+      filesystem: "${fs}"
   storageClassName: ""
   persistentVolumeReclaimPolicy: Retain
 ---
@@ -163,8 +191,11 @@ spec:
   capacity:
     storage: ${capacity}
   csi:
-    driver: parallelstore.csi.storage.gke.io
-    volumeHandle: ${instance}
+    driver: lustre.csi.storage.gke.io
+    volumeHandle: ${volume_handle}
+    volumeAttributes:
+      ip: "${ip}"
+      filesystem: "${fs}"
   storageClassName: ""
   persistentVolumeReclaimPolicy: Retain
 ---
