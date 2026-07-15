@@ -611,6 +611,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             staged_fd, staged_tmp_file = tempfile.mkstemp(prefix="staged_ckpt_", suffix=".ckpt", dir=stage_dir)
             os.close(staged_fd)
             try:
+                stage_start = time.perf_counter()
                 super()._save_checkpoint(trainer, staged_tmp_file)
                 stage_dur = time.perf_counter() - stage_start
                 logging.info(
