@@ -577,8 +577,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
         staged_tmp_file = None
         if is_writer and len(all_targets) > 1:
-            stage_start = time.perf_counter()
-            staged_fd, staged_tmp_file = tempfile.mkstemp(prefix="staged_ckpt_", suffix=".ckpt")
+            stage_dir = "/dev/shm" if os.path.exists("/dev/shm") else None
+            staged_fd, staged_tmp_file = tempfile.mkstemp(prefix="staged_ckpt_", suffix=".ckpt", dir=stage_dir)
             os.close(staged_fd)
             try:
                 super()._save_checkpoint(trainer, staged_tmp_file)
