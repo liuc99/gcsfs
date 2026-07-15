@@ -233,6 +233,8 @@ wait_for_jobset() {
       echo "JobSet $jobset failed."
       kubectl describe jobset "$jobset" || true
       kubectl get pods -l jobset.sigs.k8s.io/jobset-name="$jobset" -o wide || true
+      echo "--- Workload Pod Logs for $jobset ---"
+      kubectl logs -l jobset.sigs.k8s.io/jobset-name="$jobset" -c workload --tail=200 2>/dev/null || true
       record_failure "$step"
       return 1
     fi
@@ -241,6 +243,8 @@ wait_for_jobset() {
   echo "Timed out waiting for JobSet $jobset to complete."
   kubectl describe jobset "$jobset" || true
   kubectl get pods -l jobset.sigs.k8s.io/jobset-name="$jobset" -o wide || true
+  echo "--- Workload Pod Logs for $jobset ---"
+  kubectl logs -l jobset.sigs.k8s.io/jobset-name="$jobset" -c workload --tail=200 2>/dev/null || true
   record_failure "$step"
   return 1
 }
