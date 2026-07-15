@@ -27,7 +27,7 @@ if [ "${_USE_GCSFUSE:-false}" = "true" ]; then
 fi
 
 if [ "${_USE_GCSFUSE:-false}" = "true" ] && [ "${_USE_LUSTRE:-false}" = "true" ] && [ -z "${_ADDITIONAL_CHECKPOINT_PATHS:-}" ]; then
-  _ADDITIONAL_CHECKPOINT_PATHS="/lustre/checkpoints"
+  _ADDITIONAL_CHECKPOINT_PATHS="/lustre/checkpoints,gs://$CHECKPOINT_BUCKET/checkpoints_gcsfs"
 fi
 
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /workspace/start_time.txt

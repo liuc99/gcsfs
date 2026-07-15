@@ -377,13 +377,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
         if dst_path.startswith("gs://"):
             fs, path = fsspec.core.url_to_fs(dst_path)
-            tmp_path = path + ".part"
-            with open(src_path, "rb") as f_src, fs.open(tmp_path, "wb") as f_dst:
+            with open(src_path, "rb") as f_src, fs.open(path, "wb") as f_dst:
                 shutil.copyfileobj(f_src, f_dst, length=64 * 1024 * 1024)
-            try:
-                fs.rename(tmp_path, path)
-            except Exception:
-                pass
         else:
             shutil.copyfile(src_path, tmp_dst)
             os.replace(tmp_dst, dst_path)
@@ -699,6 +694,25 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             )
         start_time = time.perf_counter()
         super()._remove_checkpoint(trainer, filepath)
+        extra_paths_str = os.getenv("ADDITIONAL_CHECKPOINT_PATHS", "")
+        if is_deleter and extra_paths_str:
+            for raw_p in extra_paths_str.split(","):
+                p = raw_p.strip()
+                if p and p != filepath:
+                    extra_file = os.path.join(p, os.path.basename(filepath))
+                    if extra_file != filepath:
+                        try:
+                            if extra_file.startswith("gs://"):
+                                fs, path = fsspec.core.url_to_fs(extra_file)
+                                if fs.exists(path):
+                                    fs.rm(path, recursive=True)
+                            else:
+                                if os.path.isdir(extra_file):
+                                    shutil.rmtree(extra_file)
+                                elif os.path.exists(extra_file):
+                                    os.remove(extra_file)
+                        except Exception as e:
+                            logging.warning("[BENCHMARK] Failed to remove extra checkpoint %s: %s", extra_file, e)
         duration = time.perf_counter() - start_time
 
         # Accumulate checkpointing time to be excluded from step time
