@@ -359,7 +359,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.async_checkpoint = os.getenv("ASYNC_CHECKPOINT", "true").lower() == "true"
+        self.async_checkpoint = os.getenv("ASYNC_CHECKPOINT", "false").lower() == "true"
         self._executor = ThreadPoolExecutor(max_workers=1) if self.async_checkpoint else None
         self._last_future = None
 
@@ -376,11 +376,11 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             os.makedirs(parent_dir, exist_ok=True)
 
         if dst_path.startswith("gs://"):
-            fs, path = fsspec.core.url_to_fs(dst_path)
-            try:
-                fs.put_file(src_path, path)
-            except Exception:
-                fs.put(src_path, path)
+            from gcsfs.extended_gcsfs import ExtendedGcsFileSystem
+            fs = ExtendedGcsFileSystem()
+            gcs_path = dst_path[5:] if dst_path.startswith("gs://") else dst_path
+            with open(src_path, "rb") as f_src, fs.open(gcs_path, "wb", finalize_on_close=True) as f_dst:
+                shutil.copyfileobj(f_src, f_dst, length=64 * 1024 * 1024)
         else:
             shutil.copyfile(src_path, tmp_dst)
             os.replace(tmp_dst, dst_path)
