@@ -35,6 +35,8 @@ like ``ddp``) selects the parallel-training strategy. A resume
 import logging
 import os
 import sys
+import shutil
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
