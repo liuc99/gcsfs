@@ -60,7 +60,7 @@ shared_workload_helm_args() {
     else
       dataset_path="/gcs/dataset"
     fi
-  elif [ "${_USE_LUSTRE:-false}" = "true" ]; then
+  elif [ "${_USE_LUSTRE:-false}" = "true" ] && [ "${_LUSTRE_DATASET_PVC:-lustre-dataset-pvc}" != "none" ]; then
     dataset_path="/lustre/dataset"
   fi
   local gcsfuse_mount_opts="${_GCSFUSE_MOUNT_OPTIONS:-implicit-dirs}"

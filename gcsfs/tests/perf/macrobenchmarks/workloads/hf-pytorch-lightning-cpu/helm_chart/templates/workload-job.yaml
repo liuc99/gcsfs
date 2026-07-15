@@ -80,12 +80,12 @@ spec:
                   bucketName: "{{ $root.Values.gcsfuse.checkpointBucket }}"
                   mountOptions: "{{ $root.Values.gcsfuse.mountOptions }}"
             {{- end }}
-            {{- if and $root.Values.lustre.enabled $root.Values.lustre.datasetPvc }}
+            {{- if and $root.Values.lustre.enabled $root.Values.lustre.datasetPvc (ne $root.Values.lustre.datasetPvc "none") }}
             - name: lustre-dataset
               persistentVolumeClaim:
                 claimName: "{{ $root.Values.lustre.datasetPvc }}"
             {{- end }}
-            {{- if and $root.Values.lustre.enabled $root.Values.lustre.checkpointPvc }}
+            {{- if and $root.Values.lustre.enabled $root.Values.lustre.checkpointPvc (ne $root.Values.lustre.checkpointPvc "none") }}
             - name: lustre-checkpoint
               persistentVolumeClaim:
                 claimName: "{{ $root.Values.lustre.checkpointPvc }}"
@@ -175,11 +175,11 @@ spec:
                 - name: gcsfuse-checkpoint
                   mountPath: {{ $root.Values.gcsfuse.mountPathCheckpoint }}
                 {{- end }}
-                {{- if and $root.Values.lustre.enabled $root.Values.lustre.datasetPvc }}
+                {{- if and $root.Values.lustre.enabled $root.Values.lustre.datasetPvc (ne $root.Values.lustre.datasetPvc "none") }}
                 - name: lustre-dataset
                   mountPath: {{ $root.Values.lustre.mountPathDataset }}
                 {{- end }}
-                {{- if and $root.Values.lustre.enabled $root.Values.lustre.checkpointPvc }}
+                {{- if and $root.Values.lustre.enabled $root.Values.lustre.checkpointPvc (ne $root.Values.lustre.checkpointPvc "none") }}
                 - name: lustre-checkpoint
                   mountPath: {{ $root.Values.lustre.mountPathCheckpoint }}
                 {{- end }}
