@@ -640,17 +640,18 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         agg_mb_s = size_mb / duration
         agg_gb_s = size_gb / duration
 
-        logging.info(
-            "[BENCHMARK] [%s] Aggregated Checkpoint Save Complete : Step : %d : Total Size : %d bytes (%.2f MB / %.2f GB) : Total Duration : %.2f seconds : Aggregated Throughput : %.2f MB/s / %.2f GB/s",
-            backend_label,
-            trainer.global_step,
-            total_bytes,
-            size_mb,
-            size_gb,
-            duration,
-            agg_mb_s,
-            agg_gb_s,
-        )
+        if trainer.global_rank == 0:
+            logging.info(
+                "[BENCHMARK] [%s] Aggregated Checkpoint Save Complete : Step : %d : Total Size : %d bytes (%.2f MB / %.2f GB) : Total Duration : %.2f seconds : Aggregated Throughput : %.2f MB/s / %.2f GB/s",
+                backend_label,
+                trainer.global_step,
+                total_bytes,
+                size_mb,
+                size_gb,
+                duration,
+                agg_mb_s,
+                agg_gb_s,
+            )
 
     def _save_checkpoint(self, trainer, filepath):
         is_sharded_fsdp = (
@@ -703,22 +704,20 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                         pass
                 staged_tmp_file = None
 
-        start_wall = time.time()
-        primary_bytes = 0
         try:
             for i, target_path in enumerate(all_targets):
                 is_last = (i == len(all_targets) - 1)
                 res = self._save_to_single_target(trainer, target_path, is_writer, staged_tmp_file, is_last_target=is_last)
-                if i == 0 and res and res[0]:
-                    primary_bytes = res[0]
+                target_bytes = res[0] if (res and res[0]) else 0
+                target_start = res[1] if (res and len(res) > 1) else time.time()
+                target_end = res[2] if (res and len(res) > 2) else time.time()
+                self._log_aggregated_metrics(trainer, target_bytes, target_start, target_end, target_path)
         finally:
             if staged_tmp_file and os.path.exists(staged_tmp_file):
                 try:
                     os.remove(staged_tmp_file)
                 except Exception:
                     pass
-
-        self._log_aggregated_metrics(trainer, primary_bytes, start_wall, time.time(), filepath)
 
     @staticmethod
     def _get_effective_file_bytes(fp):
