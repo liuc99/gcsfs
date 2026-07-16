@@ -32,6 +32,7 @@ like ``ddp``) selects the parallel-training strategy. A resume
 -- cross-strategy restore is unsupported.
 """
 
+from datetime import timedelta
 import logging
 import os
 import sys
@@ -634,18 +635,12 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             for i, target_path in enumerate(all_targets):
                 is_last = (i == len(all_targets) - 1)
                 self._save_to_single_target(trainer, target_path, is_writer, staged_tmp_file, is_last_target=is_last)
-                if torch.distributed.is_available() and torch.distributed.is_initialized():
-                    torch.distributed.barrier()
         finally:
             if staged_tmp_file and os.path.exists(staged_tmp_file):
                 try:
                     os.remove(staged_tmp_file)
                 except Exception:
                     pass
-            if torch.is_initialized() if hasattr(torch, "is_initialized") else False:
-                pass
-            if torch.distributed.is_available() and torch.distributed.is_initialized():
-                torch.distributed.barrier()
 
     @staticmethod
     def _get_effective_file_bytes(fp):
@@ -846,9 +841,10 @@ def build_strategy(name):
     """Construct the parallel-training strategy for ``name``
     (ddp|fsdp_sharded|fsdp_full).
 
-    Uses the gloo CPU backend with the library-default process-group timeout
-    (no explicit ``timeout=`` override -- see #947).
+    Uses the gloo CPU backend with process-group timeout configured via
+    ``DISTRIBUTED_TIMEOUT_SECONDS`` (default 3600s / 1 hour).
     """
+    timeout = timedelta(seconds=int(os.getenv("DISTRIBUTED_TIMEOUT_SECONDS", "3600")))
     if name == "ddp":
         # find_unused_parameters=False: the frozen Llama params have
         # requires_grad=False, so only self.trainable participates in DDP
@@ -856,6 +852,7 @@ def build_strategy(name):
         return LoggedDDPStrategy(
             process_group_backend="gloo",
             find_unused_parameters=False,
+            timeout=timeout,
         )
     if name in ("fsdp_sharded", "fsdp_full"):
         # fsdp_sharded writes sharded checkpoints; fsdp_full writes consolidated.
@@ -866,6 +863,7 @@ def build_strategy(name):
             state_dict_type=state_dict_type,
             auto_wrap_policy={LlamaDecoderLayer},
             use_orig_params=True,
+            timeout=timeout,
         )
     raise SystemExit(
         f"Unsupported TRAINING_STRATEGY: {name!r} (use ddp|fsdp_sharded|fsdp_full)."

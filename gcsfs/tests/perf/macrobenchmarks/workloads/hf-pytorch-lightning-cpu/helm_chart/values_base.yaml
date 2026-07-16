@@ -52,6 +52,16 @@ workload:
       value: INFO
     - name: GCSFS_LOG_LEVEL
       value: INFO
+    - name: GRPC_ARG_KEEPALIVE_TIME_MS
+      value: "30000"
+    - name: GRPC_ARG_KEEPALIVE_TIMEOUT_MS
+      value: "20000"
+    - name: GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS
+      value: "1"
+    - name: GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA
+      value: "0"
+    - name: GRPC_ARG_CLIENT_IDLE_TIMEOUT_MS
+      value: "3600000"
 
 # gcsfs-only storage configuration (gs:// via gcsfs/fsspec). The experimental
 # zonal-bucket/HNS path is on by default in gcsfs (GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT

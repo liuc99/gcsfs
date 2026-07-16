@@ -228,9 +228,17 @@ class ExtendedGcsFileSystem(HnsDirCacheUpdater, GCSFileSystem):
                     "grpc_asyncio"
                 )
             )
+            grpc_options = [
+                ("grpc.primary_user_agent", f"{USER_AGENT}/{version}"),
+                ("grpc.keepalive_time_ms", int(os.getenv("GRPC_ARG_KEEPALIVE_TIME_MS", "30000"))),
+                ("grpc.keepalive_timeout_ms", int(os.getenv("GRPC_ARG_KEEPALIVE_TIMEOUT_MS", "20000"))),
+                ("grpc.keepalive_permit_without_calls", int(os.getenv("GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS", "1"))),
+                ("grpc.http2.max_pings_without_data", int(os.getenv("GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA", "0"))),
+                ("grpc.client_idle_timeout_ms", int(os.getenv("GRPC_ARG_CLIENT_IDLE_TIMEOUT_MS", "3600000"))),
+            ]
             channel_kwargs = {
                 "credentials": self.credential,
-                "options": [("grpc.primary_user_agent", f"{USER_AGENT}/{version}")],
+                "options": grpc_options,
                 "quota_project_id": self._user_project,
             }
             if self._location:

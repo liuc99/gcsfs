@@ -6,6 +6,10 @@ if [[ "${_SKIP_CLEANUP}" == "true" ]]; then
 fi
 source "$(dirname "$0")/lib.sh"
 source "${BUILD_VARS_FILE}"
+if [[ "${_DELETE_CLUSTER:-true}" == "false" ]]; then
+  echo "--- Preserving GKE cluster ${CLUSTER_NAME} (_DELETE_CLUSTER=false) ---"
+  exit 0
+fi
 echo "--- Deleting GKE cluster: ${CLUSTER_NAME} ---"
 # Best-effort: just retry the delete until it succeeds. A delete can transiently
 # fail (e.g. FAILED_PRECONDITION while a cluster operation is still settling);
