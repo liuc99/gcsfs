@@ -195,11 +195,10 @@ def calc_throughput_metrics(write_rows: list, size_rows: list) -> dict:
     if written_sizes:
         out["checkpoint_size_bytes"] = max(written_sizes)
 
-    size_by_step = {
-        r["checkpoint_step"]: r["size_bytes"]
-        for r in size_rows
-        if r.get("checkpoint_step") is not None and r.get("size_bytes") is not None
-    }
+    size_by_step = defaultdict(int)
+    for r in size_rows:
+        if r.get("checkpoint_step") is not None and r.get("size_bytes") is not None:
+            size_by_step[r["checkpoint_step"]] += r["size_bytes"]
     write_groups = _durations_by_group(
         write_rows, ("checkpoint_step", "checkpoint_location")
     )

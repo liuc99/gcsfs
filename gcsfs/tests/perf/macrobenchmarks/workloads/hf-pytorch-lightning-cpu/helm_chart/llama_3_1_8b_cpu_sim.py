@@ -562,10 +562,11 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     backend_label,
                     trainer.global_rank,
                     target_filepath,
-                    total_duration,
                     trainer.global_step,
                     trainer.global_rank,
                 )
+
+            return (size_bytes if (is_writer and size_bytes) else 0, start_time_wall, time.time())
 
         if self.async_checkpoint:
             if self._last_future is not None and not self._last_future.done():
@@ -580,11 +581,13 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 target_filepath,
             )
             self._last_future = self._executor.submit(_do_save)
+            return (0, start_time_wall, time.time())
         else:
-            _do_save()
+            res = _do_save()
             for callback in trainer.callbacks:
                 if isinstance(callback, StepTimeCallback):
                     callback.ckpt_time += (time.perf_counter() - start_time_perf)
+            return res
 
     def _write_checkpoint_file(self, trainer, target_path):
         """Writes checkpoint dictionary to target_path directly on writer rank without DDP collective hooks."""
@@ -598,6 +601,57 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             else:
                 super()._save_checkpoint(trainer, target_path)
 
+    @staticmethod
+    def _log_aggregated_metrics(trainer, local_bytes, start_wall, end_wall, filepath):
+        backend_label = "POSIX"
+        if filepath.startswith("gs://"):
+            backend_label = "GCSFS"
+        elif "/lustre" in filepath:
+            backend_label = "Lustre"
+        elif "/gcs" in filepath:
+            backend_label = "GCSFuse"
+
+        local_info = {
+            "rank": trainer.global_rank,
+            "size_bytes": local_bytes if local_bytes else 0,
+            "start_time": start_wall,
+            "end_time": end_wall,
+        }
+
+        import torch.distributed as dist
+        gathered_info = [local_info]
+        if dist.is_available() and dist.is_initialized():
+            try:
+                world_size = dist.get_world_size()
+                if world_size > 1:
+                    gathered = [None] * world_size
+                    dist.all_gather_object(gathered, local_info)
+                    gathered_info = gathered
+            except Exception as e:
+                logging.warning("[BENCHMARK] Could not gather distributed checkpoint metrics: %s", e)
+
+        total_bytes = sum(info["size_bytes"] for info in gathered_info if info)
+        min_start = min(info["start_time"] for info in gathered_info if info)
+        max_end = max(info["end_time"] for info in gathered_info if info)
+        duration = max(0.001, max_end - min_start)
+
+        size_mb = total_bytes / (1024 * 1024)
+        size_gb = total_bytes / (1024 * 1024 * 1024)
+        agg_mb_s = size_mb / duration
+        agg_gb_s = size_gb / duration
+
+        logging.info(
+            "[BENCHMARK] [%s] Aggregated Checkpoint Save Complete : Step : %d : Total Size : %d bytes (%.2f MB / %.2f GB) : Total Duration : %.2f seconds : Aggregated Throughput : %.2f MB/s / %.2f GB/s",
+            backend_label,
+            trainer.global_step,
+            total_bytes,
+            size_mb,
+            size_gb,
+            duration,
+            agg_mb_s,
+            agg_gb_s,
+        )
+
     def _save_checkpoint(self, trainer, filepath):
         is_sharded_fsdp = (
             getattr(getattr(trainer, "strategy", None), "name", "") == "fsdp"
@@ -605,6 +659,12 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         ) or (
             os.getenv("TRAINING_STRATEGY", "").lower() == "fsdp_sharded"
         )
+
+        if is_sharded_fsdp:
+            if filepath.endswith(".ckpt"):
+                filepath = f"{filepath[:-5]}-rank{trainer.global_rank}.ckpt"
+            else:
+                filepath = f"{filepath}-rank{trainer.global_rank}"
 
         is_writer = (trainer.global_rank == 0) or is_sharded_fsdp
 
@@ -643,16 +703,22 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                         pass
                 staged_tmp_file = None
 
+        start_wall = time.time()
+        primary_bytes = 0
         try:
             for i, target_path in enumerate(all_targets):
                 is_last = (i == len(all_targets) - 1)
-                self._save_to_single_target(trainer, target_path, is_writer, staged_tmp_file, is_last_target=is_last)
+                res = self._save_to_single_target(trainer, target_path, is_writer, staged_tmp_file, is_last_target=is_last)
+                if i == 0 and res and res[0]:
+                    primary_bytes = res[0]
         finally:
             if staged_tmp_file and os.path.exists(staged_tmp_file):
                 try:
                     os.remove(staged_tmp_file)
                 except Exception:
                     pass
+
+        self._log_aggregated_metrics(trainer, primary_bytes, start_wall, time.time(), filepath)
 
     @staticmethod
     def _get_effective_file_bytes(fp):
@@ -730,6 +796,12 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         ) or (
             os.getenv("TRAINING_STRATEGY", "").lower() == "fsdp_sharded"
         )
+
+        if is_sharded_fsdp:
+            if filepath.endswith(".ckpt"):
+                filepath = f"{filepath[:-5]}-rank{trainer.global_rank}.ckpt"
+            else:
+                filepath = f"{filepath}-rank{trainer.global_rank}"
 
         is_deleter = (trainer.global_rank == 0) or is_sharded_fsdp
 
@@ -830,6 +902,17 @@ class LoggedFSDPStrategy(FSDPStrategy):
     """FSDPStrategy with checkpoint restore logging."""
 
     def load_checkpoint(self, checkpoint_path, *args, **kwargs):
+        is_sharded_fsdp = (
+            getattr(self, "_state_dict_type", "") == "sharded"
+        ) or (
+            os.getenv("TRAINING_STRATEGY", "").lower() == "fsdp_sharded"
+        )
+        if is_sharded_fsdp and checkpoint_path:
+            if checkpoint_path.endswith(".ckpt") and not checkpoint_path.endswith(f"-rank{self.global_rank}.ckpt"):
+                checkpoint_path = f"{checkpoint_path[:-5]}-rank{self.global_rank}.ckpt"
+            elif not checkpoint_path.endswith(f"-rank{self.global_rank}") and not checkpoint_path.endswith(".ckpt"):
+                checkpoint_path = f"{checkpoint_path}-rank{self.global_rank}"
+
         logging.info(
             "[BENCHMARK] Checkpoint Restore Start : Rank : %d : Start time: %f seconds : Path: %s",
             self.global_rank,
