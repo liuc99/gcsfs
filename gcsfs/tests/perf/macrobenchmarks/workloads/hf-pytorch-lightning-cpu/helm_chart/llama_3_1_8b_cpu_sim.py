@@ -489,7 +489,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                         tfd, tmp_local = tempfile.mkstemp(prefix="direct_ckpt_", suffix=".ckpt", dir=stage_dir)
                         os.close(tfd)
                         try:
-                            super(LoggedModelCheckpoint, self)._save_checkpoint(trainer, tmp_local)
+                            self._write_checkpoint_file(trainer, tmp_local)
                             self._copy_staged_checkpoint(tmp_local, target_filepath)
                         finally:
                             if os.path.exists(tmp_local):
@@ -498,7 +498,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                                 except Exception:
                                     pass
                     else:
-                        super(LoggedModelCheckpoint, self)._save_checkpoint(trainer, target_filepath)
+                        self._write_checkpoint_file(trainer, target_filepath)
             finally:
                 stop_progress_event.set()
                 if ticker_thread is not None:
@@ -586,6 +586,18 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 if isinstance(callback, StepTimeCallback):
                     callback.ckpt_time += (time.perf_counter() - start_time_perf)
 
+    def _write_checkpoint_file(self, trainer, target_path):
+        """Writes checkpoint dictionary to target_path directly on writer rank without DDP collective hooks."""
+        try:
+            checkpoint_dict = trainer._checkpoint_connector.dump_checkpoint()
+            torch.save(checkpoint_dict, target_path)
+        except Exception:
+            if hasattr(trainer, "strategy") and hasattr(trainer.strategy, "checkpoint_io"):
+                checkpoint_dict = trainer._checkpoint_connector.dump_checkpoint()
+                trainer.strategy.checkpoint_io.save_checkpoint(checkpoint_dict, target_path)
+            else:
+                super()._save_checkpoint(trainer, target_path)
+
     def _save_checkpoint(self, trainer, filepath):
         is_sharded_fsdp = (
             getattr(getattr(trainer, "strategy", None), "name", "") == "fsdp"
@@ -613,7 +625,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             os.close(staged_fd)
             try:
                 stage_start = time.perf_counter()
-                super()._save_checkpoint(trainer, staged_tmp_file)
+                self._write_checkpoint_file(trainer, staged_tmp_file)
                 stage_dur = time.perf_counter() - stage_start
                 logging.info(
                     "[BENCHMARK] Staged checkpoint to local tmp file %s in %.2f seconds for global_step %d from rank %d",
