@@ -187,7 +187,12 @@ def main():
     print("\n==================================================")
     print(" TensorStore + GCSFuse Benchmark Completed Successfully")
     print("==================================================")
+    sys.stdout.flush()
+    sys.stderr.flush()
 
 
 if __name__ == "__main__":
+    import atexit
+    atexit.register(sys.stdout.flush)
+    atexit.register(sys.stderr.flush)
     main()
