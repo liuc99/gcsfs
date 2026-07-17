@@ -589,8 +589,36 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     callback.ckpt_time += (time.perf_counter() - start_time_perf)
             return res
 
+    def _write_tensorstore_checkpoint(self, trainer, target_path):
+        """Writes checkpoint state dict as TensorStore Zarr arrays to target_path."""
+        import tensorstore as ts
+        ts_dir = target_path.replace(".ckpt", ".ts_zarr")
+        checkpoint_dict = trainer._checkpoint_connector.dump_checkpoint()
+        state_dict = checkpoint_dict.get("state_dict", {})
+        for name, tensor in state_dict.items():
+            if not isinstance(tensor, torch.Tensor):
+                continue
+            arr = tensor.detach().cpu().numpy()
+            subpath = os.path.join(ts_dir, name.replace(".", "/"))
+            spec = {
+                "driver": "zarr",
+                "kvstore": {"driver": "file", "path": subpath},
+                "metadata": {
+                    "dtype": str(arr.dtype),
+                    "shape": list(arr.shape),
+                    "chunks": [min(d, 512) for d in arr.shape] if arr.shape else [1],
+                },
+                "create": True,
+                "delete_existing": True,
+            }
+            dataset = ts.open(spec).result()
+            dataset.write(arr).result()
+
     def _write_checkpoint_file(self, trainer, target_path):
         """Writes checkpoint dictionary to target_path directly on writer rank without DDP collective hooks."""
+        if os.getenv("USE_TENSORSTORE", "false").lower() == "true" or os.getenv("CHECKPOINT_FORMAT", "").lower() == "tensorstore":
+            self._write_tensorstore_checkpoint(trainer, target_path)
+            return
         try:
             checkpoint_dict = trainer._checkpoint_connector.dump_checkpoint()
             torch.save(checkpoint_dict, target_path)
