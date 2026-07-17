@@ -593,8 +593,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         """Writes checkpoint state dict as TensorStore Zarr arrays to target_path."""
         import tensorstore as ts
         ts_dir = target_path.replace(".ckpt", ".ts_zarr")
+        logging.info(
+            "[BENCHMARK] [TensorStore] Save Start (Rank %d) : Step: %d : Path: %s",
+            trainer.global_rank,
+            trainer.global_step,
+            ts_dir,
+        )
+        t0 = time.perf_counter()
         checkpoint_dict = trainer._checkpoint_connector.dump_checkpoint()
         state_dict = checkpoint_dict.get("state_dict", {})
+        count = 0
         for name, tensor in state_dict.items():
             if not isinstance(tensor, torch.Tensor):
                 continue
@@ -613,6 +621,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             }
             dataset = ts.open(spec).result()
             dataset.write(arr).result()
+            count += 1
+        dur = time.perf_counter() - t0
+        logging.info(
+            "[BENCHMARK] [TensorStore] Finished writing %d tensors via TensorStore to %s in %.2f seconds for global_step %d from rank %d",
+            count,
+            ts_dir,
+            dur,
+            trainer.global_step,
+            trainer.global_rank,
+        )
 
     def _write_checkpoint_file(self, trainer, target_path):
         """Writes checkpoint dictionary to target_path directly on writer rank without DDP collective hooks."""
@@ -632,7 +650,9 @@ class LoggedModelCheckpoint(ModelCheckpoint):
     @staticmethod
     def _log_aggregated_metrics(trainer, local_bytes, start_wall, end_wall, filepath):
         backend_label = "POSIX"
-        if filepath.startswith("gs://"):
+        if os.getenv("USE_TENSORSTORE", "false").lower() == "true":
+            backend_label = "TensorStore"
+        elif filepath.startswith("gs://"):
             backend_label = "GCSFS"
         elif "/lustre" in filepath:
             backend_label = "Lustre"
