@@ -608,9 +608,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 continue
             arr = tensor.detach().cpu().numpy()
             subpath = os.path.join(ts_dir, name.replace(".", "/"))
+            if subpath.startswith("gs://"):
+                clean_path = subpath[5:]
+                bucket = clean_path.split("/")[0]
+                blob_path = "/".join(clean_path.split("/")[1:])
+                kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
+            else:
+                kvstore_spec = {"driver": "file", "path": subpath}
             spec = {
                 "driver": "zarr",
-                "kvstore": {"driver": "file", "path": subpath},
+                "kvstore": kvstore_spec,
                 "metadata": {
                     "dtype": str(arr.dtype),
                     "shape": list(arr.shape),
@@ -650,14 +657,15 @@ class LoggedModelCheckpoint(ModelCheckpoint):
     @staticmethod
     def _log_aggregated_metrics(trainer, local_bytes, start_wall, end_wall, filepath):
         backend_label = "POSIX"
-        if os.getenv("USE_TENSORSTORE", "false").lower() == "true":
-            backend_label = "TensorStore"
-        elif filepath.startswith("gs://"):
+        if filepath.startswith("gs://"):
             backend_label = "GCSFS"
         elif "/lustre" in filepath:
             backend_label = "Lustre"
         elif "/gcs" in filepath:
             backend_label = "GCSFuse"
+
+        if os.getenv("USE_TENSORSTORE", "false").lower() == "true":
+            backend_label = f"TensorStore ({backend_label})"
 
         local_info = {
             "rank": trainer.global_rank,
