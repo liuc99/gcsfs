@@ -9,8 +9,8 @@ skip_if_failed
 source "${BUILD_VARS_FILE}"
 create_typed_bucket "$CHECKPOINT_BUCKET"
 
-if [ "${_REUSE_DATASET_BUCKET:-false}" = "true" ]; then
-  echo "--- Reusing existing dataset bucket for ${_DATASET_PATH} (skipping bucket creation and copy) ---"
+if [ "${_WORKLOAD}" = "tensorstore-gcsfuse" ] || [ "${_REUSE_DATASET_BUCKET:-false}" = "true" ]; then
+  echo "--- Skipping dataset copy for workload ${_WORKLOAD} ---"
   echo "export RUN_DATASET_PATH=${_DATASET_PATH}" >> "${BUILD_VARS_FILE}"
 else
   # Per-run dataset bucket (same config as CHECKPOINT_BUCKET), populated by an

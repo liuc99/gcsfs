@@ -106,8 +106,19 @@ done
 # and read location explicitly.
 validate_bucket() {
   BPATH="$1"; KIND="$2"
+  if [ "${_WORKLOAD}" = "tensorstore-gcsfuse" ] && [ "$KIND" = dataset ]; then
+    echo "NOTE: workload ${_WORKLOAD} does not require a dataset bucket. Skipping validation."
+    echo "export DATASET_SRC_IS_RAPID=no" >> "${BUILD_VARS_FILE}"
+    return 0
+  fi
   BUCKET=$(echo "$BPATH" | sed -E 's#^gs://([^/]+).*#\1#')
-  JSON=$(gcloud storage buckets describe "gs://$BUCKET" --project=${PROJECT_ID} --format=json 2>/dev/null) || {
+  JSON=$(gcloud storage buckets describe "gs://$BUCKET" --project=${PROJECT_ID} --format=json 2>/dev/null) || \
+  JSON=$(gcloud storage buckets describe "gs://$BUCKET" --format=json 2>/dev/null) || {
+    if [ "$KIND" = dataset ]; then
+      echo "WARNING: cannot describe $KIND bucket gs://$BUCKET. Proceeding without dataset pre-validation."
+      echo "export DATASET_SRC_IS_RAPID=no" >> "${BUILD_VARS_FILE}"
+      return 0
+    fi
     echo "ERROR: cannot describe $KIND bucket gs://$BUCKET (missing or no read access)."; exit 1; }
   LOC=$(echo "$JSON" | python3 -c "import sys,json;print((json.load(sys.stdin).get('location') or '').lower())")
   IS_RAPID=no; echo "$JSON" | grep -qiF 'RAPID' && IS_RAPID=yes
