@@ -140,7 +140,7 @@ def main():
         write_time = time.perf_counter() - start_time
         write_throughput = size_mb / write_time
 
-        print(f"[BENCHMARK] Write finished in {write_time:.4f} sec | Throughput: {write_throughput:.2f} MB/s")
+        print(f"[BENCHMARK] Write finished in {write_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {write_throughput:.2f} MB/s")
 
         # 2. Read Benchmark
         print("Reading back from GCSFuse via TensorStore...")
@@ -160,7 +160,7 @@ def main():
         read_time = time.perf_counter() - start_time
         read_throughput = size_mb / read_time
 
-        print(f"[BENCHMARK] Read finished in {read_time:.4f} sec | Throughput: {read_throughput:.2f} MB/s")
+        print(f"[BENCHMARK] Read finished in {read_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {read_throughput:.2f} MB/s")
 
         # 3. Verification
         if args.verify:
@@ -174,7 +174,8 @@ def main():
         # 4. Partial Read / Slice Benchmark
         slice_shape = [min(dim, chunk) for dim, chunk in zip(shape, chunks)]
         slice_elements = int(np.prod(slice_shape))
-        slice_mb = (slice_elements * dtype.itemsize) / (1024 * 1024)
+        slice_bytes = slice_elements * dtype.itemsize
+        slice_mb = slice_bytes / (1024 * 1024)
         print(f"Benchmarking slice read ({slice_shape})...")
         
         start_time = time.perf_counter()
@@ -182,7 +183,7 @@ def main():
         slice_data = slice_dataset.read().result()
         slice_time = time.perf_counter() - start_time
         slice_throughput = slice_mb / slice_time
-        print(f"[BENCHMARK] Slice Read finished in {slice_time:.4f} sec | Throughput: {slice_throughput:.2f} MB/s")
+        print(f"[BENCHMARK] Slice Read finished in {slice_time:.4f} sec | Size: {slice_bytes} bytes ({slice_mb:.2f} MB) | Throughput: {slice_throughput:.2f} MB/s")
 
     print("\n==================================================")
     print(" TensorStore + GCSFuse Benchmark Completed Successfully")
