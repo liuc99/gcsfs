@@ -103,6 +103,7 @@ shared_workload_helm_args() {
     --set gcsfuse.datasetBucket="${DATASET_BUCKET:-}"
     --set gcsfuse.checkpointBucket="${CHECKPOINT_BUCKET:-}"
     --set-string gcsfuse.mountOptions="${helm_gcsfuse_mount_opts}"
+    --set-string gcsfuse.sidecarImage="${_GCSFUSE_SIDECAR_IMAGE:-}"
     --set lustre.enabled="${_USE_LUSTRE:-false}"
     --set lustre.datasetPvc="${_LUSTRE_DATASET_PVC:-lustre-dataset-pvc}"
     --set lustre.checkpointPvc="${_LUSTRE_CHECKPOINT_PVC:-lustre-checkpoint-pvc}"

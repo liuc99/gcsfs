@@ -36,6 +36,7 @@ gcsfuse:
   mountPathDataset: "/gcs/dataset"
   mountPathCheckpoint: "/gcs/checkpoints"
   mountOptions: "implicit-dirs"
+  sidecarImage: ""
 
 lustre:
   enabled: false

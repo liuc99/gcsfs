@@ -32,6 +32,9 @@ spec:
               kubectl.kubernetes.io/default-container: workload
               {{- if $root.Values.gcsfuse.enabled }}
               gke-gcsfuse/volumes: "true"
+              {{- if $root.Values.gcsfuse.sidecarImage }}
+              gke-gcsfuse/sidecar-image: {{ $root.Values.gcsfuse.sidecarImage | quote }}
+              {{- end }}
               {{- end }}
           spec:
             serviceAccountName: {{ $root.Values.serviceAccount }}
