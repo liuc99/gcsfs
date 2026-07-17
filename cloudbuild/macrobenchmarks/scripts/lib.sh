@@ -76,6 +76,10 @@ shared_workload_helm_args() {
   # Helm's --set / --set-string parses commas as value separators unless escaped with \,
   local helm_gcsfuse_mount_opts="${gcsfuse_mount_opts//,/\\,}"
   local helm_additional_ckpt_paths="${_ADDITIONAL_CHECKPOINT_PATHS//,/\\,}"
+  local raw_ts_shape="${_TENSORSTORE_SHAPE:-1000,1000,100}"
+  local helm_ts_shape="${raw_ts_shape//,/\\,}"
+  local raw_ts_chunks="${_TENSORSTORE_CHUNKS:-100,100,100}"
+  local helm_ts_chunks="${raw_ts_chunks//,/\\,}"
   SHARED_HELM_ARGS=(
     --set gcsfs.datasetPath="${dataset_path}"
     --set workload.modelId="${_MODEL_ID}"
@@ -87,6 +91,11 @@ shared_workload_helm_args() {
     --set workload.trainingStrategy="${_TRAINING_STRATEGY}"
     --set workload.asyncCheckpoint="${_ASYNC_CHECKPOINT:-false}"
     --set workload.additionalCheckpointPaths="${helm_additional_ckpt_paths:-}"
+    --set-string workload.tensorstoreShape="${helm_ts_shape}"
+    --set-string workload.tensorstoreChunks="${helm_ts_chunks}"
+    --set workload.tensorstoreDtype="${_TENSORSTORE_DTYPE:-float32}"
+    --set workload.tensorstoreDriver="${_TENSORSTORE_DRIVER:-zarr}"
+    --set workload.tensorstoreIterations="${_TENSORSTORE_ITERATIONS:-1}"
     --set "nodeSelector.cloud\.google\.com/gke-nodepool=${_MACHINE_TYPE}"
     --set serviceAccount=default
     --set gcsfuse.enabled="${_USE_GCSFUSE:-false}"

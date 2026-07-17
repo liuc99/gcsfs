@@ -44,6 +44,11 @@ substitutions:
   _DATALOADER_WORKERS: "16"
   _JOBSET_VERSION: "v0.12.0"
   _SKIP_CLEANUP: "false"
+  _TENSORSTORE_SHAPE: "1000,1000,100"
+  _TENSORSTORE_CHUNKS: "100,100,100"
+  _TENSORSTORE_DTYPE: "float32"
+  _TENSORSTORE_DRIVER: "zarr"
+  _TENSORSTORE_ITERATIONS: "1"
 
 steps:
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -176,6 +181,11 @@ steps:
       - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
       - "_USE_GCSFUSE=${_USE_GCSFUSE}"
       - "_ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS}"
+      - "_TENSORSTORE_SHAPE=${_TENSORSTORE_SHAPE}"
+      - "_TENSORSTORE_CHUNKS=${_TENSORSTORE_CHUNKS}"
+      - "_TENSORSTORE_DTYPE=${_TENSORSTORE_DTYPE}"
+      - "_TENSORSTORE_DRIVER=${_TENSORSTORE_DRIVER}"
+      - "_TENSORSTORE_ITERATIONS=${_TENSORSTORE_ITERATIONS}"
     args: ["cloudbuild/macrobenchmarks/scripts/run_workload.sh"]
     waitFor: ["create-cluster", "create-buckets"]
 
