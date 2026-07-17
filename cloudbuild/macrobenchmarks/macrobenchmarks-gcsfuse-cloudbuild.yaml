@@ -220,6 +220,7 @@ steps:
       - "_LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC}"
       - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
       - "_USE_GCSFUSE=${_USE_GCSFUSE}"
+      - "_USE_TENSORSTORE=${_USE_TENSORSTORE}"
       - "_ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS}"
     args: ["cloudbuild/macrobenchmarks/scripts/run_workload.sh"]
     waitFor: ["seed-checkpoint"]
