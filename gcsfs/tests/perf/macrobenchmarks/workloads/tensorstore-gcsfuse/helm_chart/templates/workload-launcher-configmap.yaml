@@ -1,0 +1,8 @@
+# yamllint disable
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ .Release.Name }}-launcher"
+data:
+  launch-workload.sh: |-
+{{ .Files.Get "launcher.sh" | nindent 4 }}

@@ -1,0 +1,2 @@
+tensorstore>=0.1.60
+numpy>=1.24.0

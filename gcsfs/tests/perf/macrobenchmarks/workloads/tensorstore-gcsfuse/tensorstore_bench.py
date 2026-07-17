@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""
+TensorStore + GCSFuse Benchmark Script.
+
+Tests writing and reading multi-dimensional arrays using TensorStore over
+a GCSFuse mounted file system path.
+"""
+
+import argparse
+import os
+import sys
+import time
+import shutil
+import numpy as np
+import tensorstore as ts
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="TensorStore + GCSFuse Read/Write Benchmark")
+    parser.add_argument(
+        "--mount-path",
+        type=str,
+        default="/gcs/checkpoint",
+        help="Target directory path (e.g., GCSFuse mount point)",
+    )
+    parser.add_argument(
+        "--dataset-name",
+        type=str,
+        default="tensorstore_bench.zarr",
+        help="Name of the array dataset folder",
+    )
+    parser.add_argument(
+        "--shape",
+        type=str,
+        default="1000,1000,100",
+        help="Shape of the array as comma-separated integers (e.g., 1000,1000,100)",
+    )
+    parser.add_argument(
+        "--chunks",
+        type=str,
+        default="100,100,100",
+        help="Chunk shape as comma-separated integers (e.g., 100,100,100)",
+    )
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        default="float32",
+        help="Numpy data type (e.g., float32, float64, int32)",
+    )
+    parser.add_argument(
+        "--driver",
+        type=str,
+        default="zarr",
+        choices=["zarr", "zarr3", "n5"],
+        help="TensorStore driver for multi-dimensional array storage",
+    )
+    parser.add_argument(
+        "--iterations",
+        type=int,
+        default=1,
+        help="Number of read/write iterations",
+    )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        default=True,
+        help="Verify read data matches written data",
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    shape = [int(x) for x in args.shape.split(",")]
+    chunks = [int(x) for x in args.chunks.split(",")]
+    dtype = np.dtype(args.dtype)
+
+    target_dir = os.path.join(args.mount_path, args.dataset_name)
+    print(f"==================================================")
+    print(f" TensorStore + GCSFuse Benchmark")
+    print(f"==================================================")
+    print(f" Mount Path   : {args.mount_path}")
+    print(f" Target Dir   : {target_dir}")
+    print(f" Array Shape  : {shape}")
+    print(f" Chunk Shape  : {chunks}")
+    print(f" Data Type    : {dtype.name}")
+    print(f" Driver       : {args.driver}")
+    print(f" Iterations   : {args.iterations}")
+    print(f"==================================================")
+
+    # Calculate dataset size in MB
+    num_elements = int(np.prod(shape))
+    size_bytes = num_elements * dtype.itemsize
+    size_mb = size_bytes / (1024 * 1024)
+    print(f" Total Array Size: {size_mb:.2f} MB ({size_bytes} bytes)")
+
+    # Ensure target directory parent exists
+    os.makedirs(args.mount_path, exist_ok=True)
+
+    for i in range(args.iterations):
+        print(f"\n--- Iteration {i+1}/{args.iterations} ---")
+        
+        # Clean up existing directory if present
+        if os.path.exists(target_dir):
+            try:
+                shutil.rmtree(target_dir)
+            except Exception as e:
+                print(f"Warning: Failed to clean up existing path {target_dir}: {e}")
+
+        # Generate data
+        print("Generating random numpy array...")
+        data_to_write = np.random.randn(*shape).astype(dtype)
+
+        # 1. Write Benchmark
+        print("Writing to GCSFuse via TensorStore...")
+        ts_spec = {
+            "driver": args.driver,
+            "kvstore": {
+                "driver": "file",
+                "path": target_dir,
+            },
+            "metadata": {
+                "dtype": f"<{dtype.str[1:]}" if dtype.byteorder == "=" else dtype.str,
+                "shape": shape,
+                "chunks": chunks,
+            },
+            "create": True,
+            "delete_existing": True,
+        }
+
+        start_time = time.perf_counter()
+        dataset = ts.open(ts_spec).result()
+        write_future = dataset.write(data_to_write)
+        write_future.result()  # Wait for completion
+        write_time = time.perf_counter() - start_time
+        write_throughput = size_mb / write_time
+
+        print(f"[BENCHMARK] Write finished in {write_time:.4f} sec | Throughput: {write_throughput:.2f} MB/s")
+
+        # 2. Read Benchmark
+        print("Reading back from GCSFuse via TensorStore...")
+        read_spec = {
+            "driver": args.driver,
+            "kvstore": {
+                "driver": "file",
+                "path": target_dir,
+            },
+            "open": True,
+        }
+
+        start_time = time.perf_counter()
+        read_dataset = ts.open(read_spec).result()
+        read_future = read_dataset.read()
+        read_data = read_future.result()
+        read_time = time.perf_counter() - start_time
+        read_throughput = size_mb / read_time
+
+        print(f"[BENCHMARK] Read finished in {read_time:.4f} sec | Throughput: {read_throughput:.2f} MB/s")
+
+        # 3. Verification
+        if args.verify:
+            print("Verifying data integrity...")
+            if np.array_equal(data_to_write, read_data):
+                print(" SUCCESS: Read data matches written data exactly.")
+            else:
+                print(" FAILURE: Read data does NOT match written data!", file=sys.stderr)
+                sys.exit(1)
+
+        # 4. Partial Read / Slice Benchmark
+        slice_shape = [min(dim, chunk) for dim, chunk in zip(shape, chunks)]
+        slice_elements = int(np.prod(slice_shape))
+        slice_mb = (slice_elements * dtype.itemsize) / (1024 * 1024)
+        print(f"Benchmarking slice read ({slice_shape})...")
+        
+        start_time = time.perf_counter()
+        slice_dataset = read_dataset[tuple(slice(0, s) for s in slice_shape)]
+        slice_data = slice_dataset.read().result()
+        slice_time = time.perf_counter() - start_time
+        slice_throughput = slice_mb / slice_time
+        print(f"[BENCHMARK] Slice Read finished in {slice_time:.4f} sec | Throughput: {slice_throughput:.2f} MB/s")
+
+    print("\n==================================================")
+    print(" TensorStore + GCSFuse Benchmark Completed Successfully")
+    print("==================================================")
+
+
+if __name__ == "__main__":
+    main()

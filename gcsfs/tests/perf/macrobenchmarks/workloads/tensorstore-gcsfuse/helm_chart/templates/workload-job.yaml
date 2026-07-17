@@ -1,0 +1,94 @@
+# yamllint disable
+{{- $root := . -}}
+{{ $timestamp := now | date "2006-01-02-15-04-05" }}
+{{ $jobuuid := uuidv4 }}
+{{ $nodes := .Values.workload.nodes }}
+
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: "{{ .Release.Name }}"
+  namespace: default
+spec:
+  failurePolicy:
+    maxRestarts: 0
+  replicatedJobs:
+  - name: workload
+    replicas: 1
+    template:
+      spec:
+        parallelism: {{ $nodes }}
+        completions: {{ $nodes }}
+        backoffLimit: 0
+        completionMode: Indexed
+        ttlSecondsAfterFinished: 43200
+        template:
+          metadata:
+            name: {{ .Release.Name }}
+            annotations:
+              kubectl.kubernetes.io/default-container: workload
+              {{- if $root.Values.gcsfuse.enabled }}
+              gke-gcsfuse/volumes: "true"
+              {{- end }}
+          spec:
+            serviceAccountName: {{ $root.Values.serviceAccount }}
+            restartPolicy: Never
+            {{- if $root.Values.nodeSelector }}
+            nodeSelector:
+              {{- toYaml $root.Values.nodeSelector | nindent 14 }}
+            {{- end }}
+            volumes:
+            - name: workload-configuration
+              configMap:
+                name: "{{ .Release.Name }}-config"
+                items:
+                - key: workload-configuration
+                  path: tensorstore_bench.py
+                - key: requirements.txt
+                  path: requirements.txt
+            - name: workload-launcher
+              configMap:
+                name: "{{ .Release.Name }}-launcher"
+                defaultMode: 0755
+            {{- if $root.Values.gcsfuse.enabled }}
+            - name: gcsfuse-checkpoint
+              csi:
+                driver: gcsfuse.csi.storage.gke.io
+                volumeAttributes:
+                  bucketName: "{{ $root.Values.gcsfuse.checkpointBucket }}"
+                  mountOptions: "{{ $root.Values.gcsfuse.mountOptions }}"
+            {{- end }}
+            containers:
+            - name: workload
+              image: "{{ $root.Values.workload.image }}"
+              imagePullPolicy: Always
+              command: ["/bin/bash", "/workload/launcher/launch-workload.sh"]
+              env:
+              - name: JOB_TIMESTAMP
+                value: "{{ $timestamp }}"
+              - name: CKPT_WRITE_PATH
+                value: "{{ $root.Values.gcsfs.ckptWritePath }}"
+              - name: REQUIREMENTS
+                value: "{{ $root.Values.workload.requirements }}"
+              - name: TENSORSTORE_SHAPE
+                value: "{{ $root.Values.workload.tensorstoreShape }}"
+              - name: TENSORSTORE_CHUNKS
+                value: "{{ $root.Values.workload.tensorstoreChunks }}"
+              - name: TENSORSTORE_DTYPE
+                value: "{{ $root.Values.workload.tensorstoreDtype }}"
+              - name: TENSORSTORE_DRIVER
+                value: "{{ $root.Values.workload.tensorstoreDriver }}"
+              - name: TENSORSTORE_ITERATIONS
+                value: "{{ $root.Values.workload.tensorstoreIterations }}"
+              volumeMounts:
+              - name: workload-configuration
+                mountPath: /workload/configs
+              - name: workload-configuration
+                mountPath: /workload/tensorstore_bench.py
+                subPath: tensorstore_bench.py
+              - name: workload-launcher
+                mountPath: /workload/launcher
+              {{- if $root.Values.gcsfuse.enabled }}
+              - name: gcsfuse-checkpoint
+                mountPath: {{ $root.Values.gcsfuse.mountPathCheckpoint }}
+              {{- end }}
