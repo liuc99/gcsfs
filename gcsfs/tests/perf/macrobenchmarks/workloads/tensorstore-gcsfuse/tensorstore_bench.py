@@ -15,7 +15,7 @@ import numpy as np
 import tensorstore as ts
 
 
-def parse_args():
+def parse_args(args=None):
     parser = argparse.ArgumentParser(description="TensorStore + GCSFuse Read/Write Benchmark")
     parser.add_argument(
         "--mount-path",
@@ -51,8 +51,15 @@ def parse_args():
         "--driver",
         type=str,
         default="zarr",
-        choices=["zarr", "zarr3", "n5"],
-        help="TensorStore driver for multi-dimensional array storage",
+        choices=["zarr", "zarr3", "n5", "gcs"],
+        help="TensorStore driver for multi-dimensional array storage (use 'gcs' for native GCS kvstore with zarr)",
+    )
+    parser.add_argument(
+        "--kvstore-driver",
+        type=str,
+        default=None,
+        choices=["file", "gcs", "auto"],
+        help="TensorStore kvstore driver ('file' for filesystem/GCSFuse, 'gcs' for native GCS kvstore)",
     )
     parser.add_argument(
         "--iterations",
@@ -66,7 +73,7 @@ def parse_args():
         default=True,
         help="Verify read data matches written data",
     )
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 
 def main():
@@ -80,6 +87,18 @@ def main():
     chunks = [int(x) for x in args.chunks.split(",")]
     dtype = np.dtype(args.dtype)
 
+    array_driver = args.driver
+    kvstore_driver = args.kvstore_driver
+
+    if args.driver == "gcs":
+        array_driver = "zarr"
+        kvstore_driver = "gcs"
+    elif kvstore_driver is None:
+        if args.mount_path.startswith("gs://"):
+            kvstore_driver = "gcs"
+        else:
+            kvstore_driver = "file"
+
     target_dir = os.path.join(args.mount_path, args.dataset_name)
     print(f"==================================================")
     print(f" TensorStore + GCSFuse Benchmark")
@@ -89,7 +108,8 @@ def main():
     print(f" Array Shape  : {shape}")
     print(f" Chunk Shape  : {chunks}")
     print(f" Data Type    : {dtype.name}")
-    print(f" Driver       : {args.driver}")
+    print(f" Array Driver : {array_driver}")
+    print(f" KVStore      : {kvstore_driver}")
     print(f" Iterations   : {args.iterations}")
     print(f"==================================================")
 
@@ -99,14 +119,35 @@ def main():
     size_mb = size_bytes / (1024 * 1024)
     print(f" Total Array Size: {size_mb:.2f} MB ({size_bytes} bytes)")
 
-    # Ensure target directory parent exists
-    os.makedirs(args.mount_path, exist_ok=True)
+    # Construct KVStore spec
+    if kvstore_driver == "gcs":
+        path_str = target_dir
+        if path_str.startswith("gs://"):
+            path_str = path_str[5:]
+        elif path_str.startswith("/gcs/"):
+            path_str = path_str[5:]
+        path_str = path_str.strip("/")
+        bucket, _, object_path = path_str.partition("/")
+        kvstore_spec = {
+            "driver": "gcs",
+            "bucket": bucket,
+            "path": object_path,
+        }
+    else:
+        kvstore_spec = {
+            "driver": "file",
+            "path": target_dir,
+        }
+
+    # Ensure target directory parent exists for local filesystem
+    if kvstore_driver == "file":
+        os.makedirs(args.mount_path, exist_ok=True)
 
     for i in range(args.iterations):
         print(f"\n--- Iteration {i+1}/{args.iterations} ---")
         
-        # Clean up existing directory if present
-        if os.path.exists(target_dir):
+        # Clean up existing directory if present on local filesystem
+        if kvstore_driver == "file" and os.path.exists(target_dir):
             try:
                 shutil.rmtree(target_dir)
             except Exception as e:
@@ -117,13 +158,10 @@ def main():
         data_to_write = np.random.randn(*shape).astype(dtype)
 
         # 1. Write Benchmark
-        print("Writing to GCSFuse via TensorStore...")
+        print(f"Writing via TensorStore ({array_driver} on {kvstore_driver})...")
         ts_spec = {
-            "driver": args.driver,
-            "kvstore": {
-                "driver": "file",
-                "path": target_dir,
-            },
+            "driver": array_driver,
+            "kvstore": kvstore_spec,
             "metadata": {
                 "dtype": f"<{dtype.str[1:]}" if dtype.byteorder == "=" else dtype.str,
                 "shape": shape,
@@ -143,13 +181,10 @@ def main():
         print(f"[BENCHMARK] Write finished in {write_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {write_throughput:.2f} MB/s")
 
         # 2. Read Benchmark
-        print("Reading back from GCSFuse via TensorStore...")
+        print(f"Reading back via TensorStore ({array_driver} on {kvstore_driver})...")
         read_spec = {
-            "driver": args.driver,
-            "kvstore": {
-                "driver": "file",
-                "path": target_dir,
-            },
+            "driver": array_driver,
+            "kvstore": kvstore_spec,
             "open": True,
         }
 
