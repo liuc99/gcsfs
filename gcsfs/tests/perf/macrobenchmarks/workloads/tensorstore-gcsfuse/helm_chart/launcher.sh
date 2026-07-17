@@ -33,7 +33,7 @@ DTYPE="${TENSORSTORE_DTYPE:-float32}"
 DRIVER="${TENSORSTORE_DRIVER:-zarr}"
 ITERATIONS="${TENSORSTORE_ITERATIONS:-1}"
 
-python3 /workload/tensorstore_bench.py \
+python3 -u /workload/tensorstore_bench.py \
   --mount-path "$MOUNT_PATH" \
   --shape "$SHAPE" \
   --chunks "$CHUNKS" \

@@ -70,6 +70,10 @@ def parse_args():
 
 
 def main():
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except Exception:
+        pass
     args = parse_args()
 
     shape = [int(x) for x in args.shape.split(",")]
