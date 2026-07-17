@@ -46,4 +46,6 @@ helm install "$RUN_ID" "$CHART" -f "$CHART/values_base.yaml" \
 if ! wait_for_jobset "$RUN_ID" run-workload; then
   exit 1
 fi
+echo "--- Workload Pod Logs ($RUN_ID) ---"
+kubectl logs -l jobset.sigs.k8s.io/jobset-name="$RUN_ID" -c workload --tail=1000 2>/dev/null || kubectl logs -l app.kubernetes.io/instance="$RUN_ID" --tail=1000 2>/dev/null || true
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /workspace/end_time.txt
