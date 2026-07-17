@@ -562,6 +562,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     backend_label,
                     trainer.global_rank,
                     target_filepath,
+                    total_duration,
                     trainer.global_step,
                     trainer.global_rank,
                 )
