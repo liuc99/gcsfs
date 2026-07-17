@@ -30,7 +30,7 @@ substitutions:
   _STEPS: "1"
   _CHECKPOINT_INTERVAL: "1"
   _CKPT_TO_KEEP: "1"
-  _DATASET_PATH: ""
+  _DATASET_PATH: "gs://dummy-dataset"
   _MODEL_ID: ""
   _HF_TOKEN: ""
   _CHECKPOINT_LOAD_PATH: ""
@@ -111,6 +111,7 @@ steps:
     env:
       - "PROJECT_ID=${PROJECT_ID}"
       - "LOCATION=${LOCATION}"
+      - "_WORKLOAD=${_WORKLOAD}"
       - "_BUCKET_TYPE=${_BUCKET_TYPE}"
       - "_ZONE=${_ZONE}"
       - "_DATASET_PATH=${_DATASET_PATH:-gs://dummy-dataset}"
