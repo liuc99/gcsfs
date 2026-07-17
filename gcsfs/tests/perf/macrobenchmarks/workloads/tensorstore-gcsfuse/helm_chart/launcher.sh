@@ -13,7 +13,7 @@ STEP_START=$(date +%s)
 echo "Installing Python dependencies..."
 pip3 install --no-cache-dir -r /workload/configs/requirements.txt
 
-if [[ -n "${REQUIREMENTS:-}" ]]; then
+if [[ -n "${REQUIREMENTS:-}" ]] && [[ "${REQUIREMENTS:-}" != "none" ]]; then
   pip3 install $REQUIREMENTS
 fi
 echo "[BENCHMARK] Python dependencies setup finished in $(( $(date +%s) - STEP_START )) seconds."

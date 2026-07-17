@@ -34,7 +34,7 @@ substitutions:
   _MODEL_ID: ""
   _HF_TOKEN: ""
   _CHECKPOINT_LOAD_PATH: ""
-  _REQUIREMENTS: ""
+  _REQUIREMENTS: "none"
   _IMAGE: "python:3.11-slim"
   _TRAINING_STRATEGY: "ddp"
   _SEED_CHECKPOINT: "false"
