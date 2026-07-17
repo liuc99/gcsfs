@@ -10,6 +10,7 @@ substitutions:
   _GCSFUSE_ENABLE_STREAM_WRITE: "true"
   _GCSFUSE_MOUNT_OPTIONS: "implicit-dirs"
   _ASYNC_CHECKPOINT: "false"
+  _USE_TENSORSTORE: "false"
   _USE_LUSTRE: "false"
   _LUSTRE_INSTANCE: ""
   _LUSTRE_IP: ""

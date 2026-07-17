@@ -90,6 +90,7 @@ shared_workload_helm_args() {
     --set workload.requirements="${_REQUIREMENTS}"
     --set workload.trainingStrategy="${_TRAINING_STRATEGY}"
     --set workload.asyncCheckpoint="${_ASYNC_CHECKPOINT:-false}"
+    --set workload.useTensorstore="${_USE_TENSORSTORE:-false}"
     --set workload.additionalCheckpointPaths="${helm_additional_ckpt_paths:-}"
     --set-string workload.tensorstoreShape="${helm_ts_shape}"
     --set-string workload.tensorstoreChunks="${helm_ts_chunks}"

@@ -135,6 +135,8 @@ spec:
                 value: "{{ $root.Values.workload.asyncCheckpoint }}"
               - name: ADDITIONAL_CHECKPOINT_PATHS
                 value: "{{ $root.Values.workload.additionalCheckpointPaths }}"
+              - name: USE_TENSORSTORE
+                value: "{{ $root.Values.workload.useTensorstore }}"
               - name: MODEL_ID
                 value: "{{ $root.Values.workload.modelId }}"
               - name: TRAINING_STRATEGY
