@@ -62,6 +62,12 @@ def parse_args(args=None):
         help="TensorStore kvstore driver ('file' for filesystem/GCSFuse, 'gcs' for native GCS kvstore)",
     )
     parser.add_argument(
+        "--bucket",
+        type=str,
+        default=None,
+        help="GCS bucket name for native GCS kvstore",
+    )
+    parser.add_argument(
         "--iterations",
         type=int,
         default=1,
@@ -121,16 +127,26 @@ def main():
 
     # Construct KVStore spec
     if kvstore_driver == "gcs":
+        bucket_name = args.bucket or os.environ.get("CHECKPOINT_BUCKET") or os.environ.get("GCSFUSE_CHECKPOINT_BUCKET")
         path_str = target_dir
         if path_str.startswith("gs://"):
             path_str = path_str[5:]
         elif path_str.startswith("/gcs/"):
             path_str = path_str[5:]
         path_str = path_str.strip("/")
-        bucket, _, object_path = path_str.partition("/")
+
+        if bucket_name:
+            parts = path_str.split("/", 1)
+            if len(parts) > 1 and parts[0] in (bucket_name, "checkpoints", "dataset"):
+                object_path = parts[1]
+            else:
+                object_path = path_str
+        else:
+            bucket_name, _, object_path = path_str.partition("/")
+
         kvstore_spec = {
             "driver": "gcs",
-            "bucket": bucket,
+            "bucket": bucket_name,
             "path": object_path,
         }
     else:

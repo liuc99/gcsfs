@@ -83,6 +83,8 @@ spec:
                 value: "{{ $root.Values.workload.tensorstoreDriver }}"
               - name: TENSORSTORE_ITERATIONS
                 value: "{{ $root.Values.workload.tensorstoreIterations }}"
+              - name: CHECKPOINT_BUCKET
+                value: "{{ $root.Values.gcsfuse.checkpointBucket }}"
               volumeMounts:
               - name: workload-configuration
                 mountPath: /workload/configs
