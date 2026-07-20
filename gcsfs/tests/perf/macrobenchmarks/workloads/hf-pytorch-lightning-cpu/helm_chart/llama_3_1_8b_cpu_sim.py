@@ -370,7 +370,27 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         super().teardown(trainer, pl_module, stage)
 
     @staticmethod
-    def _copy_staged_checkpoint(src_path, dst_path):
+    def _parallel_copytree(src_dir, dst_dir, max_workers=16):
+        os.makedirs(dst_dir, exist_ok=True)
+        file_tasks = []
+        for dirpath, _, filenames in os.walk(src_dir):
+            rel_dir = os.path.relpath(dirpath, src_dir)
+            target_dir = os.path.join(dst_dir, rel_dir) if rel_dir != "." else dst_dir
+            os.makedirs(target_dir, exist_ok=True)
+            for f in filenames:
+                s_file = os.path.join(dirpath, f)
+                d_file = os.path.join(target_dir, f)
+                file_tasks.append((s_file, d_file))
+
+        def _copy_one(pair):
+            s, d = pair
+            shutil.copyfile(s, d)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            list(executor.map(_copy_one, file_tasks))
+
+    @classmethod
+    def _copy_staged_checkpoint(cls, src_path, dst_path):
         src_ts = src_path.replace(".ckpt", ".ts_zarr")
         dst_ts = dst_path.replace(".ckpt", ".ts_zarr")
 
@@ -385,7 +405,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 if os.path.exists(tmp_dst_ts):
                     shutil.rmtree(tmp_dst_ts)
                 if os.path.isdir(src_ts):
-                    shutil.copytree(src_ts, tmp_dst_ts)
+                    cls._parallel_copytree(src_ts, tmp_dst_ts, max_workers=16)
                 else:
                     shutil.copyfile(src_ts, tmp_dst_ts)
                 if os.path.exists(dst_ts):
