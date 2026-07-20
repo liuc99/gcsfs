@@ -723,15 +723,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                         "create": True,
                         "delete_existing": True,
                     }
-                    dataset = ts.open(spec).result()
-                    dataset.write(arr).result()
-                    return arr.nbytes
-                except Exception as e:
-                    if subpath.startswith("gs://") and ("appendable objects" in str(e) or "400" in str(e)):
-                        logging.warning("[BENCHMARK] [TensorStore] Direct REST GCS ('driver: gcs') is unsupported on Rapid/Zonal buckets: %s", e)
-                        return 0
-                    logging.error("[BENCHMARK] [TensorStore] Exception writing tensor '%s' (kvstore: %s): %s", name, kvstore_spec, e, exc_info=True)
-                    raise e
+                    try:
+                        dataset = ts.open(spec).result()
+                        dataset.write(arr).result()
+                        return arr.nbytes
+                    except Exception as e:
+                        if subpath.startswith("gs://") and ("appendable objects" in str(e) or "400" in str(e)):
+                            logging.warning("[BENCHMARK] [TensorStore] Direct REST GCS ('driver: gcs') is unsupported on Rapid/Zonal buckets: %s", e)
+                            return 0
+                        logging.error("[BENCHMARK] [TensorStore] Exception writing tensor '%s' (kvstore: %s): %s", name, kvstore_spec, e, exc_info=True)
+                        raise e
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 written_bytes = list(executor.map(_write_tensor_item, items_to_write))
