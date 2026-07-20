@@ -371,20 +371,45 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def _copy_staged_checkpoint(src_path, dst_path):
-        tmp_dst = dst_path + ".part"
-        parent_dir = os.path.dirname(dst_path)
-        if parent_dir and not dst_path.startswith("gs://"):
-            os.makedirs(parent_dir, exist_ok=True)
+        src_ts = src_path.replace(".ckpt", ".ts_zarr")
+        dst_ts = dst_path.replace(".ckpt", ".ts_zarr")
 
-        if dst_path.startswith("gs://"):
-            from gcsfs.extended_gcsfs import ExtendedGcsFileSystem
-            fs = ExtendedGcsFileSystem()
-            gcs_path = dst_path[5:] if dst_path.startswith("gs://") else dst_path
-            with open(src_path, "rb") as f_src, fs.open(gcs_path, "wb", finalize_on_close=True) as f_dst:
-                shutil.copyfileobj(f_src, f_dst, length=64 * 1024 * 1024)
-        else:
-            shutil.copyfile(src_path, tmp_dst)
-            os.replace(tmp_dst, dst_path)
+        if os.path.exists(src_ts):
+            if dst_path.startswith("gs://"):
+                pass
+            else:
+                parent_dir = os.path.dirname(dst_ts)
+                if parent_dir:
+                    os.makedirs(parent_dir, exist_ok=True)
+                tmp_dst_ts = dst_ts + ".part"
+                if os.path.exists(tmp_dst_ts):
+                    shutil.rmtree(tmp_dst_ts)
+                if os.path.isdir(src_ts):
+                    shutil.copytree(src_ts, tmp_dst_ts)
+                else:
+                    shutil.copyfile(src_ts, tmp_dst_ts)
+                if os.path.exists(dst_ts):
+                    if os.path.isdir(dst_ts):
+                        shutil.rmtree(dst_ts)
+                    else:
+                        os.remove(dst_ts)
+                os.replace(tmp_dst_ts, dst_ts)
+
+        if os.path.exists(src_path) and os.path.getsize(src_path) > 0:
+            tmp_dst = dst_path + ".part"
+            parent_dir = os.path.dirname(dst_path)
+            if parent_dir and not dst_path.startswith("gs://"):
+                os.makedirs(parent_dir, exist_ok=True)
+
+            if dst_path.startswith("gs://"):
+                from gcsfs.extended_gcsfs import ExtendedGcsFileSystem
+                fs = ExtendedGcsFileSystem()
+                gcs_path = dst_path[5:] if dst_path.startswith("gs://") else dst_path
+                with open(src_path, "rb") as f_src, fs.open(gcs_path, "wb", finalize_on_close=True) as f_dst:
+                    shutil.copyfileobj(f_src, f_dst, length=64 * 1024 * 1024)
+            else:
+                shutil.copyfile(src_path, tmp_dst)
+                os.replace(tmp_dst, dst_path)
 
     def _save_to_single_target(self, trainer, target_filepath, is_writer, staged_tmp_file=None, is_last_target=False):
         start_time_wall = time.time()
@@ -795,7 +820,9 @@ class LoggedModelCheckpoint(ModelCheckpoint):
     def _measure_checkpoint_bytes(cls, filepath):
         if os.path.exists(filepath):
             if os.path.isfile(filepath):
-                return cls._get_effective_file_bytes(filepath)
+                sz = cls._get_effective_file_bytes(filepath)
+                if sz > 0:
+                    return sz
             elif os.path.isdir(filepath):
                 total_size = 0
                 for dirpath, _, filenames in os.walk(filepath):
@@ -803,7 +830,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                         fp = os.path.join(dirpath, f)
                         if not os.path.islink(fp):
                             total_size += cls._get_effective_file_bytes(fp)
-                return total_size
+                if total_size > 0:
+                    return total_size
 
         ts_candidate = filepath.replace(".ckpt", ".ts_zarr")
         if os.path.exists(ts_candidate):
