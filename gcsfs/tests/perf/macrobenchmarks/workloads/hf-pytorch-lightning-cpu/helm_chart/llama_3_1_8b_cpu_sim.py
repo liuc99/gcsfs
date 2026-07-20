@@ -436,7 +436,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         start_time_perf = time.perf_counter()
 
         if target_filepath.startswith("gs://"):
-            backend_label = "GCSFS"
+            backend_label = "TensorStore Direct GCS"
         elif "/lustre" in target_filepath:
             backend_label = "Lustre"
         elif "/gcs" in target_filepath:
@@ -527,21 +527,10 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
             try:
                 if is_writer:
-                    if staged_tmp_file and os.path.exists(staged_tmp_file):
+                    if target_filepath.startswith("gs://"):
+                        self._write_checkpoint_file(trainer, target_filepath)
+                    elif staged_tmp_file and os.path.exists(staged_tmp_file):
                         self._copy_staged_checkpoint(staged_tmp_file, target_filepath)
-                    elif target_filepath.startswith("gs://"):
-                        stage_dir = "/dev/shm" if os.path.exists("/dev/shm") else None
-                        tfd, tmp_local = tempfile.mkstemp(prefix="direct_ckpt_", suffix=".ckpt", dir=stage_dir)
-                        os.close(tfd)
-                        try:
-                            self._write_checkpoint_file(trainer, tmp_local)
-                            self._copy_staged_checkpoint(tmp_local, target_filepath)
-                        finally:
-                            if os.path.exists(tmp_local):
-                                try:
-                                    os.remove(tmp_local)
-                                except Exception:
-                                    pass
                     else:
                         self._write_checkpoint_file(trainer, target_filepath)
             finally:
@@ -857,6 +846,24 @@ class LoggedModelCheckpoint(ModelCheckpoint):
 
     @classmethod
     def _measure_checkpoint_bytes(cls, filepath):
+        if filepath.startswith("gs://"):
+            try:
+                from gcsfs.extended_gcsfs import ExtendedGcsFileSystem
+                fs = ExtendedGcsFileSystem()
+                ts_dir = filepath.replace(".ckpt", ".ts_zarr")
+                clean_path = ts_dir[5:]
+                info_list = fs.find(clean_path, detail=True)
+                if isinstance(info_list, dict):
+                    total_gcs_bytes = sum(v.get("size", 0) for v in info_list.values() if isinstance(v, dict))
+                elif isinstance(info_list, list):
+                    total_gcs_bytes = sum(v.get("size", 0) for v in info_list if isinstance(v, dict))
+                else:
+                    total_gcs_bytes = 0
+                if total_gcs_bytes > 0:
+                    return total_gcs_bytes
+            except Exception:
+                pass
+
         if os.path.exists(filepath):
             if os.path.isfile(filepath):
                 sz = cls._get_effective_file_bytes(filepath)
