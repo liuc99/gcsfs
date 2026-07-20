@@ -632,6 +632,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
     def _write_tensorstore_checkpoint(self, trainer, target_path):
         """Writes checkpoint state dict as TensorStore Zarr arrays to target_path."""
         import tensorstore as ts
+        import numpy as np
         ts_driver = os.getenv("TS_DRIVER", "zarr").lower()
         ext = ".ts_bin" if ts_driver in ("raw", "bin", "npy", "npz") else ".ts_zarr"
         ts_dir = target_path.replace(".ckpt", ext)
