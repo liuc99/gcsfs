@@ -96,7 +96,7 @@ shared_workload_helm_args() {
     --set "workload.envs[2].name=SKIP_RAMDISK_STAGING"
     --set-string "workload.envs[2].value=${_SKIP_RAMDISK_STAGING:-1}"
     --set "workload.envs[3].name=TS_DRIVER"
-    --set-string "workload.envs[3].value=${_TS_DRIVER:-raw}"
+    --set-string "workload.envs[3].value=${_TS_DRIVER:-zarr3}"
     --set workload.asyncCheckpoint="${_ASYNC_CHECKPOINT:-false}"
     --set workload.useTensorstore="${_USE_TENSORSTORE:-false}"
     --set workload.additionalCheckpointPaths="${helm_additional_ckpt_paths:-}"

@@ -644,7 +644,63 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         t0 = time.perf_counter()
         checkpoint_dict = trainer._checkpoint_connector.dump_checkpoint()
         state_dict = checkpoint_dict.get("state_dict", {})
-        if os.getenv("TS_SINGLE_ARRAY", "0") == "1":
+        ts_driver = os.getenv("TS_DRIVER", "zarr").lower()
+        if ts_driver in ("zarr3", "zarr3_sharded", "sharded10", "raw10", "bin10"):
+            items_to_write = [(k, v) for k, v in state_dict.items() if isinstance(v, torch.Tensor)]
+            num_shards = int(os.getenv("NUM_SHARDS", "10"))
+            shard_items = [[] for _ in range(num_shards)]
+            for idx, item in enumerate(items_to_write):
+                shard_items[idx % num_shards].append(item)
+
+            def _write_shard(shard_idx):
+                items = shard_items[shard_idx]
+                flat_list = []
+                for name, tensor in items:
+                    if tensor.dtype in (torch.bfloat16, torch.float16):
+                        flat_list.append(tensor.detach().cpu().to(torch.float32).numpy().ravel())
+                    else:
+                        flat_list.append(tensor.detach().cpu().numpy().ravel())
+                if not flat_list:
+                    return 0
+                concat_arr = np.concatenate(flat_list)
+                if ts_driver in ("raw10", "bin10"):
+                    subpath_bin = os.path.join(ts_dir, f"shard_{shard_idx:02d}.bin")
+                    os.makedirs(os.path.dirname(subpath_bin), exist_ok=True)
+                    with open(subpath_bin, "wb") as f:
+                        f.write(concat_arr.tobytes())
+                    return concat_arr.nbytes
+                else:
+                    subpath = os.path.join(ts_dir, f"shard_{shard_idx:02d}.zarr")
+                    if subpath.startswith("gs://"):
+                        clean_path = subpath[5:]
+                        bucket = clean_path.split("/")[0]
+                        blob_path = "/".join(clean_path.split("/")[1:])
+                        kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
+                    else:
+                        kvstore_spec = {"driver": "file", "path": subpath}
+                    spec = {
+                        "driver": "zarr",
+                        "kvstore": kvstore_spec,
+                        "metadata": {
+                            "dtype": concat_arr.dtype.str,
+                            "shape": [len(concat_arr)],
+                            "chunks": [len(concat_arr)],
+                        },
+                        "create": True,
+                        "delete_existing": True,
+                    }
+                    try:
+                        dataset = ts.open(spec).result()
+                        dataset.write(concat_arr).result()
+                        return concat_arr.nbytes
+                    except Exception as e:
+                        logging.error("[BENCHMARK] [TensorStore] Exception writing shard %d: %s", shard_idx, e, exc_info=True)
+                        raise e
+
+            with ThreadPoolExecutor(max_workers=num_shards) as executor:
+                written_bytes = list(executor.map(_write_shard, range(num_shards)))
+            count = len(written_bytes)
+        elif os.getenv("TS_SINGLE_ARRAY", "0") == "1":
             flat_list = []
             for name, tensor in state_dict.items():
                 if isinstance(tensor, torch.Tensor):
