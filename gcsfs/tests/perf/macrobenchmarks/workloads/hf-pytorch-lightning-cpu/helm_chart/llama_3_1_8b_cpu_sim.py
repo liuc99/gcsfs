@@ -639,52 +639,88 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         t0 = time.perf_counter()
         checkpoint_dict = trainer._checkpoint_connector.dump_checkpoint()
         state_dict = checkpoint_dict.get("state_dict", {})
-        count = 0
-        for name, tensor in state_dict.items():
-            if not isinstance(tensor, torch.Tensor):
-                continue
-            if tensor.dtype in (torch.bfloat16, torch.float16):
-                arr = tensor.detach().cpu().to(torch.float32).numpy()
-            else:
-                arr = tensor.detach().cpu().numpy()
-            dtype_str = arr.dtype.str
-            subpath = os.path.join(ts_dir, name.replace(".", "/"))
-            if subpath.startswith("gs://"):
-                clean_path = subpath[5:]
-                bucket = clean_path.split("/")[0]
-                blob_path = "/".join(clean_path.split("/")[1:])
-                kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
-                if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-                    for token_path in ("/var/run/secrets/tokens/gcp-token", "/var/run/secrets/kubernetes.io/serviceaccount/token"):
-                        if os.path.exists(token_path):
-                            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = token_path
-                            break
-            else:
-                kvstore_spec = {"driver": "file", "path": subpath}
-            ts_chunk_size = int(os.getenv("TS_CHUNK_SIZE", "0"))
-            if ts_chunk_size > 0 and arr.shape:
-                chunks_spec = [min(d, ts_chunk_size) for d in arr.shape]
-            else:
-                chunks_spec = list(arr.shape) if arr.shape else [1]
+        if os.getenv("TS_SINGLE_ARRAY", "0") == "1":
+            flat_list = []
+            for name, tensor in state_dict.items():
+                if isinstance(tensor, torch.Tensor):
+                    if tensor.dtype in (torch.bfloat16, torch.float16):
+                        flat_list.append(tensor.detach().cpu().to(torch.float32).numpy().ravel())
+                    else:
+                        flat_list.append(tensor.detach().cpu().numpy().ravel())
+            if flat_list:
+                concat_arr = np.concatenate(flat_list)
+                subpath = os.path.join(ts_dir, "model_state")
+                if subpath.startswith("gs://"):
+                    clean_path = subpath[5:]
+                    bucket = clean_path.split("/")[0]
+                    blob_path = "/".join(clean_path.split("/")[1:])
+                    kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
+                else:
+                    kvstore_spec = {"driver": "file", "path": subpath}
+                spec = {
+                    "driver": "zarr",
+                    "kvstore": kvstore_spec,
+                    "metadata": {
+                        "dtype": concat_arr.dtype.str,
+                        "shape": [len(concat_arr)],
+                        "chunks": [len(concat_arr)],
+                    },
+                    "create": True,
+                    "delete_existing": True,
+                }
+                try:
+                    dataset = ts.open(spec).result()
+                    dataset.write(concat_arr).result()
+                    count = 1
+                except Exception as e:
+                    logging.error("[BENCHMARK] [TensorStore] Exception writing single array: %s", e, exc_info=True)
+                    raise e
+        else:
+            for name, tensor in state_dict.items():
+                if not isinstance(tensor, torch.Tensor):
+                    continue
+                if tensor.dtype in (torch.bfloat16, torch.float16):
+                    arr = tensor.detach().cpu().to(torch.float32).numpy()
+                else:
+                    arr = tensor.detach().cpu().numpy()
+                dtype_str = arr.dtype.str
+                subpath = os.path.join(ts_dir, name.replace(".", "/"))
+                if subpath.startswith("gs://"):
+                    clean_path = subpath[5:]
+                    bucket = clean_path.split("/")[0]
+                    blob_path = "/".join(clean_path.split("/")[1:])
+                    kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
+                    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+                        for token_path in ("/var/run/secrets/tokens/gcp-token", "/var/run/secrets/kubernetes.io/serviceaccount/token"):
+                            if os.path.exists(token_path):
+                                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = token_path
+                                break
+                else:
+                    kvstore_spec = {"driver": "file", "path": subpath}
+                ts_chunk_size = int(os.getenv("TS_CHUNK_SIZE", "0"))
+                if ts_chunk_size > 0 and arr.shape:
+                    chunks_spec = [min(d, ts_chunk_size) for d in arr.shape]
+                else:
+                    chunks_spec = list(arr.shape) if arr.shape else [1]
 
-            spec = {
-                "driver": "zarr",
-                "kvstore": kvstore_spec,
-                "metadata": {
-                    "dtype": dtype_str,
-                    "shape": list(arr.shape),
-                    "chunks": chunks_spec,
-                },
-                "create": True,
-                "delete_existing": True,
-            }
-            try:
-                dataset = ts.open(spec).result()
-                dataset.write(arr).result()
-                count += 1
-            except Exception as e:
-                logging.error("[BENCHMARK] [TensorStore] Exception writing tensor '%s' (kvstore: %s): %s", name, kvstore_spec, e, exc_info=True)
-                raise e
+                spec = {
+                    "driver": "zarr",
+                    "kvstore": kvstore_spec,
+                    "metadata": {
+                        "dtype": dtype_str,
+                        "shape": list(arr.shape),
+                        "chunks": chunks_spec,
+                    },
+                    "create": True,
+                    "delete_existing": True,
+                }
+                try:
+                    dataset = ts.open(spec).result()
+                    dataset.write(arr).result()
+                    count += 1
+                except Exception as e:
+                    logging.error("[BENCHMARK] [TensorStore] Exception writing tensor '%s' (kvstore: %s): %s", name, kvstore_spec, e, exc_info=True)
+                    raise e
         dur = time.perf_counter() - t0
         total_files = 0
         total_bytes = 0
@@ -805,7 +841,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                         all_targets.append(extra_file)
 
         staged_tmp_file = None
-        if is_writer and len(all_targets) > 1:
+        if is_writer and len(all_targets) > 1 and os.getenv("SKIP_RAMDISK_STAGING", "0") != "1":
             stage_dir = "/dev/shm" if os.path.exists("/dev/shm") else None
             staged_fd, staged_tmp_file = tempfile.mkstemp(prefix="staged_ckpt_", suffix=".ckpt", dir=stage_dir)
             os.close(staged_fd)
