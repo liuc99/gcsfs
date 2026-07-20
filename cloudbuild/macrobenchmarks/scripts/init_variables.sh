@@ -58,6 +58,10 @@ case "${_USE_LUSTRE:-false}" in
   true|false) ;;
   *) echo "ERROR: _USE_LUSTRE must be true|false (got '${_USE_LUSTRE}')."; exit 1 ;;
 esac
+case "${_USE_TENSORSTORE:-false}" in
+  true|false) ;;
+  *) echo "ERROR: _USE_TENSORSTORE must be true|false (got '${_USE_TENSORSTORE}')."; exit 1 ;;
+esac
 if [ "${_USE_LUSTRE:-false}" = "true" ]; then
   if [ -z "${_LUSTRE_INSTANCE}" ]; then
     echo "ERROR: _LUSTRE_INSTANCE must be specified when _USE_LUSTRE is 'true'."; exit 1
@@ -188,6 +192,7 @@ echo "export REGION=${REGION}" >> "${BUILD_VARS_FILE}"
 echo "export _USE_GCSFUSE=${_USE_GCSFUSE:-false}" >> "${BUILD_VARS_FILE}"
 echo "export _GCSFUSE_ENABLE_STREAM_WRITE=${_GCSFUSE_ENABLE_STREAM_WRITE:-true}" >> "${BUILD_VARS_FILE}"
 echo "export _USE_LUSTRE=${_USE_LUSTRE:-false}" >> "${BUILD_VARS_FILE}"
+echo "export _USE_TENSORSTORE=${_USE_TENSORSTORE:-false}" >> "${BUILD_VARS_FILE}"
 echo "export _LUSTRE_INSTANCE=${_LUSTRE_INSTANCE:-}" >> "${BUILD_VARS_FILE}"
 echo "export _LUSTRE_DATASET_PVC=${_LUSTRE_DATASET_PVC:-lustre-dataset-pvc}" >> "${BUILD_VARS_FILE}"
 echo "export _LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC:-lustre-checkpoint-pvc}" >> "${BUILD_VARS_FILE}"
