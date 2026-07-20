@@ -607,15 +607,11 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         for name, tensor in state_dict.items():
             if not isinstance(tensor, torch.Tensor):
                 continue
-            if tensor.dtype == torch.bfloat16:
-                arr = ts.array(tensor.detach().cpu().view(torch.uint16).numpy(), dtype=ts.bfloat16)
-                dtype_str = "bfloat16"
-            elif tensor.dtype == torch.float16:
-                arr = tensor.detach().cpu().to(torch.float16).numpy()
-                dtype_str = str(arr.dtype)
+            if tensor.dtype in (torch.bfloat16, torch.float16):
+                arr = tensor.detach().cpu().to(torch.float32).numpy()
             else:
                 arr = tensor.detach().cpu().numpy()
-                dtype_str = str(arr.dtype)
+            dtype_str = str(arr.dtype)
             subpath = os.path.join(ts_dir, name.replace(".", "/"))
             if subpath.startswith("gs://"):
                 clean_path = subpath[5:]
@@ -629,8 +625,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 "kvstore": kvstore_spec,
                 "metadata": {
                     "dtype": dtype_str,
-                    "shape": list(tensor.shape),
-                    "chunks": [min(d, 512) for d in tensor.shape] if tensor.shape else [1],
+                    "shape": list(arr.shape),
+                    "chunks": [min(d, 512) for d in arr.shape] if arr.shape else [1],
                 },
                 "create": True,
                 "delete_existing": True,
