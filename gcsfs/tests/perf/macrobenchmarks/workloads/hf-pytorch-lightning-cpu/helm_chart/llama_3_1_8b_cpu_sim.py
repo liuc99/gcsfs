@@ -633,7 +633,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         """Writes checkpoint state dict as TensorStore Zarr arrays to target_path."""
         import tensorstore as ts
         ts_driver = os.getenv("TS_DRIVER", "zarr").lower()
-        ext = ".ts_npy" if ts_driver == "npy" else ".ts_zarr"
+        ext = ".ts_bin" if ts_driver in ("raw", "bin", "npy", "npz") else ".ts_zarr"
         ts_dir = target_path.replace(".ckpt", ext)
         logging.info(
             "[BENCHMARK] [TensorStore] Save Start (Rank %d) : Step: %d : Path: %s",
@@ -692,21 +692,12 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     arr = tensor.detach().cpu().numpy()
                 subpath = os.path.join(ts_dir, name.replace(".", "/"))
                 ts_driver = os.getenv("TS_DRIVER", "zarr").lower()
-                if ts_driver == "npy":
-                    subpath_npy = subpath + ".npy"
-                    if subpath_npy.startswith("gs://"):
-                        clean_path = subpath_npy[5:]
-                        bucket = clean_path.split("/")[0]
-                        blob_path = "/".join(clean_path.split("/")[1:])
-                        kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
-                    else:
-                        kvstore_spec = {"driver": "file", "path": subpath_npy}
-                    spec = {
-                        "driver": "npy",
-                        "kvstore": kvstore_spec,
-                        "create": True,
-                        "delete_existing": True,
-                    }
+                if ts_driver in ("raw", "bin", "npy", "npz"):
+                    subpath_bin = subpath + ".bin"
+                    os.makedirs(os.path.dirname(subpath_bin), exist_ok=True)
+                    with open(subpath_bin, "wb") as f:
+                        f.write(arr.tobytes())
+                    return arr.nbytes
                 else:
                     if subpath.startswith("gs://"):
                         clean_path = subpath[5:]
@@ -732,7 +723,6 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                         "create": True,
                         "delete_existing": True,
                     }
-                try:
                     dataset = ts.open(spec).result()
                     dataset.write(arr).result()
                     return arr.nbytes
@@ -959,6 +949,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     return total_size
 
         ts_candidate = filepath.replace(".ckpt", ".ts_zarr")
+        if not os.path.exists(ts_candidate):
+            ts_candidate = filepath.replace(".ckpt", ".ts_bin")
         if not os.path.exists(ts_candidate):
             ts_candidate = filepath.replace(".ckpt", ".ts_npy")
         if os.path.exists(ts_candidate):
