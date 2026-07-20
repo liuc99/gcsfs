@@ -879,6 +879,13 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 target_start = res[1] if (res and len(res) > 1) else time.time()
                 target_end = res[2] if (res and len(res) > 2) else time.time()
                 self._log_aggregated_metrics(trainer, target_bytes, target_start, target_end, target_path)
+            
+            import torch.distributed as dist
+            if dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1:
+                try:
+                    dist.barrier()
+                except Exception as barrier_err:
+                    logging.warning("[BENCHMARK] Barrier synchronization after checkpoint save failed: %s", barrier_err)
         finally:
             if staged_tmp_file and os.path.exists(staged_tmp_file):
                 try:
