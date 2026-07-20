@@ -680,9 +680,22 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             dataset.write(arr).result()
             count += 1
         dur = time.perf_counter() - t0
+        total_files = 0
+        total_bytes = 0
+        if os.path.exists(ts_dir) and os.path.isdir(ts_dir):
+            for dirpath, _, filenames in os.walk(ts_dir):
+                total_files += len(filenames)
+                for f in filenames:
+                    fp = os.path.join(dirpath, f)
+                    if not os.path.islink(fp):
+                        total_bytes += self._get_effective_file_bytes(fp)
+
         logging.info(
-            "[BENCHMARK] [TensorStore] Finished writing %d tensors via TensorStore to %s in %.2f seconds for global_step %d from rank %d",
+            "[BENCHMARK] [TensorStore] Finished writing %d tensors (%d total files, %.2f MB / %.2f GB) via TensorStore to %s in %.2f seconds for global_step %d from rank %d",
             count,
+            total_files,
+            total_bytes / (1024 * 1024),
+            total_bytes / (1024 * 1024 * 1024),
             ts_dir,
             dur,
             trainer.global_step,
