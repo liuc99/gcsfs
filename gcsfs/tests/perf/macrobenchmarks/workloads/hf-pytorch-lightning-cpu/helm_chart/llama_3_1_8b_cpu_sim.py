@@ -671,9 +671,13 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 "create": True,
                 "delete_existing": True,
             }
-            dataset = ts.open(spec).result()
-            dataset.write(arr).result()
-            count += 1
+            try:
+                dataset = ts.open(spec).result()
+                dataset.write(arr).result()
+                count += 1
+            except Exception as e:
+                logging.error("[BENCHMARK] [TensorStore] Exception writing tensor '%s' (kvstore: %s): %s", name, kvstore_spec, e, exc_info=True)
+                raise e
         dur = time.perf_counter() - t0
         total_files = 0
         total_bytes = 0
