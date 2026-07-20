@@ -676,9 +676,11 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     logging.error("[BENCHMARK] [TensorStore] Exception writing single array: %s", e, exc_info=True)
                     raise e
         else:
-            for name, tensor in state_dict.items():
-                if not isinstance(tensor, torch.Tensor):
-                    continue
+            items_to_write = [(k, v) for k, v in state_dict.items() if isinstance(v, torch.Tensor)]
+            max_workers = int(os.getenv("PARALLEL_COPY_WORKERS", "32"))
+
+            def _write_tensor_item(item):
+                name, tensor = item
                 if tensor.dtype in (torch.bfloat16, torch.float16):
                     arr = tensor.detach().cpu().to(torch.float32).numpy()
                 else:
@@ -690,7 +692,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     bucket = clean_path.split("/")[0]
                     blob_path = "/".join(clean_path.split("/")[1:])
                     kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
-                    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+                    if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
                         for token_path in ("/var/run/secrets/tokens/gcp-token", "/var/run/secrets/kubernetes.io/serviceaccount/token"):
                             if os.path.exists(token_path):
                                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = token_path
@@ -717,10 +719,14 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 try:
                     dataset = ts.open(spec).result()
                     dataset.write(arr).result()
-                    count += 1
+                    return arr.nbytes
                 except Exception as e:
                     logging.error("[BENCHMARK] [TensorStore] Exception writing tensor '%s' (kvstore: %s): %s", name, kvstore_spec, e, exc_info=True)
                     raise e
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                written_bytes = list(executor.map(_write_tensor_item, items_to_write))
+            count = len(written_bytes)
         dur = time.perf_counter() - t0
         total_files = 0
         total_bytes = 0
