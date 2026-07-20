@@ -370,7 +370,9 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         super().teardown(trainer, pl_module, stage)
 
     @staticmethod
-    def _parallel_copytree(src_dir, dst_dir, max_workers=16):
+    def _parallel_copytree(src_dir, dst_dir, max_workers=None):
+        if max_workers is None:
+            max_workers = int(os.getenv("PARALLEL_COPY_WORKERS", "32"))
         os.makedirs(dst_dir, exist_ok=True)
         file_tasks = []
         for dirpath, _, filenames in os.walk(src_dir):
@@ -405,7 +407,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 if os.path.exists(tmp_dst_ts):
                     shutil.rmtree(tmp_dst_ts)
                 if os.path.isdir(src_ts):
-                    cls._parallel_copytree(src_ts, tmp_dst_ts, max_workers=16)
+                    cls._parallel_copytree(src_ts, tmp_dst_ts)
                 else:
                     shutil.copyfile(src_ts, tmp_dst_ts)
                 if os.path.exists(dst_ts):
