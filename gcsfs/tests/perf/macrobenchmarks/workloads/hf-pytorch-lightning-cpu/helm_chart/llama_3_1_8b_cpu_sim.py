@@ -607,7 +607,15 @@ class LoggedModelCheckpoint(ModelCheckpoint):
         for name, tensor in state_dict.items():
             if not isinstance(tensor, torch.Tensor):
                 continue
-            arr = tensor.detach().cpu().numpy()
+            if tensor.dtype == torch.bfloat16:
+                arr = ts.array(tensor.detach().cpu().view(torch.uint16).numpy(), dtype=ts.bfloat16)
+                dtype_str = "bfloat16"
+            elif tensor.dtype == torch.float16:
+                arr = tensor.detach().cpu().to(torch.float16).numpy()
+                dtype_str = str(arr.dtype)
+            else:
+                arr = tensor.detach().cpu().numpy()
+                dtype_str = str(arr.dtype)
             subpath = os.path.join(ts_dir, name.replace(".", "/"))
             if subpath.startswith("gs://"):
                 clean_path = subpath[5:]
@@ -620,9 +628,9 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 "driver": "zarr",
                 "kvstore": kvstore_spec,
                 "metadata": {
-                    "dtype": str(arr.dtype),
-                    "shape": list(arr.shape),
-                    "chunks": [min(d, 512) for d in arr.shape] if arr.shape else [1],
+                    "dtype": dtype_str,
+                    "shape": list(tensor.shape),
+                    "chunks": [min(d, 512) for d in tensor.shape] if tensor.shape else [1],
                 },
                 "create": True,
                 "delete_existing": True,
@@ -795,6 +803,17 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             elif os.path.isdir(filepath):
                 total_size = 0
                 for dirpath, _, filenames in os.walk(filepath):
+                    for f in filenames:
+                        fp = os.path.join(dirpath, f)
+                        if not os.path.islink(fp):
+                            total_size += cls._get_effective_file_bytes(fp)
+                return total_size
+
+        ts_candidate = filepath.replace(".ckpt", ".ts_zarr")
+        if os.path.exists(ts_candidate):
+            if os.path.isdir(ts_candidate):
+                total_size = 0
+                for dirpath, _, filenames in os.walk(ts_candidate):
                     for f in filenames:
                         fp = os.path.join(dirpath, f)
                         if not os.path.islink(fp):
