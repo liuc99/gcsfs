@@ -632,7 +632,9 @@ class LoggedModelCheckpoint(ModelCheckpoint):
     def _write_tensorstore_checkpoint(self, trainer, target_path):
         """Writes checkpoint state dict as TensorStore Zarr arrays to target_path."""
         import tensorstore as ts
-        ts_dir = target_path.replace(".ckpt", ".ts_zarr")
+        ts_driver = os.getenv("TS_DRIVER", "zarr").lower()
+        ext = ".ts_npy" if ts_driver == "npy" else ".ts_zarr"
+        ts_dir = target_path.replace(".ckpt", ext)
         logging.info(
             "[BENCHMARK] [TensorStore] Save Start (Rank %d) : Step: %d : Path: %s",
             trainer.global_rank,
@@ -688,37 +690,48 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     arr = tensor.detach().cpu().to(torch.float32).numpy()
                 else:
                     arr = tensor.detach().cpu().numpy()
-                dtype_str = arr.dtype.str
                 subpath = os.path.join(ts_dir, name.replace(".", "/"))
-                if subpath.startswith("gs://"):
-                    clean_path = subpath[5:]
-                    bucket = clean_path.split("/")[0]
-                    blob_path = "/".join(clean_path.split("/")[1:])
-                    kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
-                    if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
-                        for token_path in ("/var/run/secrets/tokens/gcp-token", "/var/run/secrets/kubernetes.io/serviceaccount/token"):
-                            if os.path.exists(token_path):
-                                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = token_path
-                                break
+                ts_driver = os.getenv("TS_DRIVER", "zarr").lower()
+                if ts_driver == "npy":
+                    subpath_npy = subpath + ".npy"
+                    if subpath_npy.startswith("gs://"):
+                        clean_path = subpath_npy[5:]
+                        bucket = clean_path.split("/")[0]
+                        blob_path = "/".join(clean_path.split("/")[1:])
+                        kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
+                    else:
+                        kvstore_spec = {"driver": "file", "path": subpath_npy}
+                    spec = {
+                        "driver": "npy",
+                        "kvstore": kvstore_spec,
+                        "create": True,
+                        "delete_existing": True,
+                    }
                 else:
-                    kvstore_spec = {"driver": "file", "path": subpath}
-                ts_chunk_size = int(os.getenv("TS_CHUNK_SIZE", "0"))
-                if ts_chunk_size > 0 and arr.shape:
-                    chunks_spec = [min(d, ts_chunk_size) for d in arr.shape]
-                else:
-                    chunks_spec = list(arr.shape) if arr.shape else [1]
+                    if subpath.startswith("gs://"):
+                        clean_path = subpath[5:]
+                        bucket = clean_path.split("/")[0]
+                        blob_path = "/".join(clean_path.split("/")[1:])
+                        kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
+                    else:
+                        kvstore_spec = {"driver": "file", "path": subpath}
+                    ts_chunk_size = int(os.getenv("TS_CHUNK_SIZE", "0"))
+                    if ts_chunk_size > 0 and arr.shape:
+                        chunks_spec = [min(d, ts_chunk_size) for d in arr.shape]
+                    else:
+                        chunks_spec = list(arr.shape) if arr.shape else [1]
 
-                spec = {
-                    "driver": "zarr",
-                    "kvstore": kvstore_spec,
-                    "metadata": {
-                        "dtype": dtype_str,
-                        "shape": list(arr.shape),
-                        "chunks": chunks_spec,
-                    },
-                    "create": True,
-                    "delete_existing": True,
-                }
+                    spec = {
+                        "driver": "zarr",
+                        "kvstore": kvstore_spec,
+                        "metadata": {
+                            "dtype": dtype_str,
+                            "shape": list(arr.shape),
+                            "chunks": chunks_spec,
+                        },
+                        "create": True,
+                        "delete_existing": True,
+                    }
                 try:
                     dataset = ts.open(spec).result()
                     dataset.write(arr).result()
@@ -946,6 +959,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     return total_size
 
         ts_candidate = filepath.replace(".ckpt", ".ts_zarr")
+        if not os.path.exists(ts_candidate):
+            ts_candidate = filepath.replace(".ckpt", ".ts_npy")
         if os.path.exists(ts_candidate):
             if os.path.isdir(ts_candidate):
                 total_size = 0
