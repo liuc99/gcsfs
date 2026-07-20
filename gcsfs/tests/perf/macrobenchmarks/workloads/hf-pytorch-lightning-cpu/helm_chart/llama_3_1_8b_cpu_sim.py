@@ -652,6 +652,11 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 bucket = clean_path.split("/")[0]
                 blob_path = "/".join(clean_path.split("/")[1:])
                 kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
+                if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+                    for token_path in ("/var/run/secrets/tokens/gcp-token", "/var/run/secrets/kubernetes.io/serviceaccount/token"):
+                        if os.path.exists(token_path):
+                            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = token_path
+                            break
             else:
                 kvstore_spec = {"driver": "file", "path": subpath}
             ts_chunk_size = int(os.getenv("TS_CHUNK_SIZE", "0"))
