@@ -665,13 +665,19 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
             else:
                 kvstore_spec = {"driver": "file", "path": subpath}
+            ts_chunk_size = int(os.getenv("TS_CHUNK_SIZE", "0"))
+            if ts_chunk_size > 0 and arr.shape:
+                chunks_spec = [min(d, ts_chunk_size) for d in arr.shape]
+            else:
+                chunks_spec = list(arr.shape) if arr.shape else [1]
+
             spec = {
                 "driver": "zarr",
                 "kvstore": kvstore_spec,
                 "metadata": {
                     "dtype": dtype_str,
                     "shape": list(arr.shape),
-                    "chunks": [min(d, 512) for d in arr.shape] if arr.shape else [1],
+                    "chunks": chunks_spec,
                 },
                 "create": True,
                 "delete_existing": True,
