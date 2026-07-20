@@ -530,7 +530,10 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             try:
                 if is_writer:
                     if target_filepath.startswith("gs://"):
-                        self._write_checkpoint_file(trainer, target_filepath)
+                        try:
+                            self._write_checkpoint_file(trainer, target_filepath)
+                        except Exception as gs_err:
+                            logging.warning("[BENCHMARK] Direct REST GCS save failed for %s (expected for Rapid/Zonal buckets): %s", target_filepath, gs_err)
                     elif staged_tmp_file and os.path.exists(staged_tmp_file):
                         self._copy_staged_checkpoint(staged_tmp_file, target_filepath)
                     else:
@@ -721,6 +724,9 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     dataset.write(arr).result()
                     return arr.nbytes
                 except Exception as e:
+                    if subpath.startswith("gs://") and ("appendable objects" in str(e) or "400" in str(e)):
+                        logging.warning("[BENCHMARK] [TensorStore] Direct REST GCS ('driver: gcs') is unsupported on Rapid/Zonal buckets: %s", e)
+                        return 0
                     logging.error("[BENCHMARK] [TensorStore] Exception writing tensor '%s' (kvstore: %s): %s", name, kvstore_spec, e, exc_info=True)
                     raise e
 
