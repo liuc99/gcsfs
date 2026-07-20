@@ -611,7 +611,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 arr = tensor.detach().cpu().to(torch.float32).numpy()
             else:
                 arr = tensor.detach().cpu().numpy()
-            dtype_str = str(arr.dtype)
+            dtype_str = arr.dtype.str
             subpath = os.path.join(ts_dir, name.replace(".", "/"))
             if subpath.startswith("gs://"):
                 clean_path = subpath[5:]
