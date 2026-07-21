@@ -12,6 +12,7 @@ substitutions:
   _GCSFUSE_SIDECAR_IMAGE: ""
   _ASYNC_CHECKPOINT: "false"
   _USE_TENSORSTORE: "false"
+  _NUM_SHARDS: "10"
   _USE_LUSTRE: "false"
   _LUSTRE_INSTANCE: ""
   _LUSTRE_IP: ""
@@ -106,6 +107,7 @@ steps:
       - "_ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS}"
       - "_USE_LUSTRE=${_USE_LUSTRE}"
       - "_USE_TENSORSTORE=${_USE_TENSORSTORE}"
+      - "_NUM_SHARDS=${_NUM_SHARDS}"
       - "_LUSTRE_INSTANCE=${_LUSTRE_INSTANCE}"
       - "_LUSTRE_IP=${_LUSTRE_IP}"
       - "_LUSTRE_FILESYSTEM=${_LUSTRE_FILESYSTEM}"
@@ -224,6 +226,7 @@ steps:
       - "_LUSTRE_CHECKPOINT_PVC=${_LUSTRE_CHECKPOINT_PVC}"
       - "_USE_GCSFUSE=${_USE_GCSFUSE}"
       - "_USE_TENSORSTORE=${_USE_TENSORSTORE}"
+      - "_NUM_SHARDS=${_NUM_SHARDS}"
       - "_ADDITIONAL_CHECKPOINT_PATHS=${_ADDITIONAL_CHECKPOINT_PATHS}"
     args: ["cloudbuild/macrobenchmarks/scripts/run_workload.sh"]
     waitFor: ["seed-checkpoint"]
