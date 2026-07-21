@@ -653,23 +653,29 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             for idx, item in enumerate(items_to_write):
                 shard_items[idx % num_shards].append(item)
 
+            import gc
+
             def _write_shard(shard_idx):
                 items = shard_items[shard_idx]
                 flat_list = []
                 for name, tensor in items:
                     if tensor.dtype in (torch.bfloat16, torch.float16):
-                        flat_list.append(tensor.detach().cpu().to(torch.float32).numpy().ravel())
+                        flat_list.append(tensor.detach().cpu().view(torch.uint8).numpy().ravel())
                     else:
                         flat_list.append(tensor.detach().cpu().numpy().ravel())
                 if not flat_list:
                     return 0
                 concat_arr = np.concatenate(flat_list)
+                del flat_list
                 if ts_driver in ("raw10", "bin10"):
                     subpath_bin = os.path.join(ts_dir, f"shard_{shard_idx:02d}.bin")
                     os.makedirs(os.path.dirname(subpath_bin), exist_ok=True)
                     with open(subpath_bin, "wb") as f:
                         f.write(concat_arr.tobytes())
-                    return concat_arr.nbytes
+                    written_nbytes = concat_arr.nbytes
+                    del concat_arr
+                    gc.collect()
+                    return written_nbytes
                 else:
                     subpath = os.path.join(ts_dir, f"shard_{shard_idx:02d}.zarr")
                     if subpath.startswith("gs://"):
@@ -693,12 +699,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     try:
                         dataset = ts.open(spec).result()
                         dataset.write(concat_arr).result()
-                        return concat_arr.nbytes
+                        written_nbytes = concat_arr.nbytes
+                        del concat_arr
+                        gc.collect()
+                        return written_nbytes
                     except Exception as e:
                         logging.error("[BENCHMARK] [TensorStore] Exception writing shard %d: %s", shard_idx, e, exc_info=True)
                         raise e
 
-            with ThreadPoolExecutor(max_workers=num_shards) as executor:
+            ts_max_workers = int(os.getenv("TS_MAX_WORKERS", "2"))
+            with ThreadPoolExecutor(max_workers=min(ts_max_workers, num_shards)) as executor:
                 written_bytes = list(executor.map(_write_shard, range(num_shards)))
             count = len(written_bytes)
         elif os.getenv("TS_SINGLE_ARRAY", "0") == "1":
@@ -706,11 +716,12 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             for name, tensor in state_dict.items():
                 if isinstance(tensor, torch.Tensor):
                     if tensor.dtype in (torch.bfloat16, torch.float16):
-                        flat_list.append(tensor.detach().cpu().to(torch.float32).numpy().ravel())
+                        flat_list.append(tensor.detach().cpu().view(torch.uint8).numpy().ravel())
                     else:
                         flat_list.append(tensor.detach().cpu().numpy().ravel())
             if flat_list:
                 concat_arr = np.concatenate(flat_list)
+                del flat_list
                 subpath = os.path.join(ts_dir, "model_state")
                 if subpath.startswith("gs://"):
                     clean_path = subpath[5:]
@@ -733,6 +744,8 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                 try:
                     dataset = ts.open(spec).result()
                     dataset.write(concat_arr).result()
+                    del concat_arr
+                    gc.collect()
                     count = 1
                 except Exception as e:
                     logging.error("[BENCHMARK] [TensorStore] Exception writing single array: %s", e, exc_info=True)
@@ -744,7 +757,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
             def _write_tensor_item(item):
                 name, tensor = item
                 if tensor.dtype in (torch.bfloat16, torch.float16):
-                    arr = tensor.detach().cpu().to(torch.float32).numpy()
+                    arr = tensor.detach().cpu().view(torch.uint8).numpy()
                 else:
                     arr = tensor.detach().cpu().numpy()
                 subpath = os.path.join(ts_dir, name.replace(".", "/"))
