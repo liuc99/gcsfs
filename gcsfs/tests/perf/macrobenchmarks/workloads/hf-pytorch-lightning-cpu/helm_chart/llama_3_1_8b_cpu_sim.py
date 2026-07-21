@@ -685,13 +685,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                         kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
                     else:
                         kvstore_spec = {"driver": "file", "path": subpath}
+                    ts_chunk_size = int(os.getenv("TS_CHUNK_SIZE", str(64 * 1024 * 1024)))
+                    chunk_len = min(len(concat_arr), ts_chunk_size) if ts_chunk_size > 0 else len(concat_arr)
                     spec = {
                         "driver": "zarr",
                         "kvstore": kvstore_spec,
                         "metadata": {
                             "dtype": concat_arr.dtype.str,
                             "shape": [len(concat_arr)],
-                            "chunks": [len(concat_arr)],
+                            "chunks": [chunk_len],
+                            "compressor": None,
                         },
                         "create": True,
                         "delete_existing": True,
@@ -730,13 +733,16 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
                 else:
                     kvstore_spec = {"driver": "file", "path": subpath}
+                ts_chunk_size = int(os.getenv("TS_CHUNK_SIZE", str(64 * 1024 * 1024)))
+                chunk_len = min(len(concat_arr), ts_chunk_size) if ts_chunk_size > 0 else len(concat_arr)
                 spec = {
                     "driver": "zarr",
                     "kvstore": kvstore_spec,
                     "metadata": {
                         "dtype": concat_arr.dtype.str,
                         "shape": [len(concat_arr)],
-                        "chunks": [len(concat_arr)],
+                        "chunks": [chunk_len],
+                        "compressor": None,
                     },
                     "create": True,
                     "delete_existing": True,
@@ -782,6 +788,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     else:
                         chunks_spec = list(arr.shape) if arr.shape else [1]
 
+                    dtype_str = arr.dtype.str
                     spec = {
                         "driver": "zarr",
                         "kvstore": kvstore_spec,
@@ -789,6 +796,7 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                             "dtype": dtype_str,
                             "shape": list(arr.shape),
                             "chunks": chunks_spec,
+                            "compressor": None,
                         },
                         "create": True,
                         "delete_existing": True,
