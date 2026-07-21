@@ -30,6 +30,11 @@ workload:
   ckptToKeep: 1
   asyncCheckpoint: "false"
   useTensorstore: "false"
+  tsSingleArray: "0"
+  parallelCopyWorkers: 32
+  skipRamdiskStaging: "1"
+  tsDriver: "zarr3"
+  numShards: 10
   additionalCheckpointPaths: ""
   # Per-rank micro-batch, optimizer-step gradient accumulation, and dataloader
   # workers. gradAccum is 1 to match the launcher's effective value;

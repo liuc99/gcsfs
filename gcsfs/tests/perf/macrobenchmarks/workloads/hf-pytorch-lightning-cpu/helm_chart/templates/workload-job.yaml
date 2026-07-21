@@ -140,6 +140,16 @@ spec:
                 value: "{{ $root.Values.workload.additionalCheckpointPaths }}"
               - name: USE_TENSORSTORE
                 value: "{{ $root.Values.workload.useTensorstore }}"
+              - name: TS_SINGLE_ARRAY
+                value: "{{ $root.Values.workload.tsSingleArray }}"
+              - name: PARALLEL_COPY_WORKERS
+                value: "{{ $root.Values.workload.parallelCopyWorkers }}"
+              - name: SKIP_RAMDISK_STAGING
+                value: "{{ $root.Values.workload.skipRamdiskStaging }}"
+              - name: TS_DRIVER
+                value: "{{ $root.Values.workload.tsDriver }}"
+              - name: NUM_SHARDS
+                value: "{{ $root.Values.workload.numShards }}"
               - name: MODEL_ID
                 value: "{{ $root.Values.workload.modelId }}"
               - name: TRAINING_STRATEGY
