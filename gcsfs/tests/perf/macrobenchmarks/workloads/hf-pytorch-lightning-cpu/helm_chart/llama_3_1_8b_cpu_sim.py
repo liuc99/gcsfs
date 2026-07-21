@@ -1240,6 +1240,7 @@ def build_strategy(name):
         return LoggedDDPStrategy(
             process_group_backend="gloo",
             find_unused_parameters=False,
+            broadcast_buffers=False,
             timeout=timeout,
         )
     if name in ("fsdp_sharded", "fsdp_full"):
