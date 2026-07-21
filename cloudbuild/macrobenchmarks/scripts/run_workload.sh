@@ -32,6 +32,8 @@ fi
 
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /workspace/start_time.txt
 shared_workload_helm_args
+# Clean up any stale leftover releases from cancelled runs on persistent cluster
+helm list -q | grep -E '^buildid-' | xargs -r helm uninstall 2>/dev/null || true
 helm install "$RUN_ID" "$CHART" -f "$CHART/values_base.yaml" \
   "${SHARED_HELM_ARGS[@]}" \
   --set gcsfs.ckptWritePath="$CKPT_WRITE_PATH" \
