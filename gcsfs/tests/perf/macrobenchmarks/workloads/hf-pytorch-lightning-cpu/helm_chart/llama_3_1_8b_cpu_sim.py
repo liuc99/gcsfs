@@ -685,15 +685,13 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                         kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
                     else:
                         kvstore_spec = {"driver": "file", "path": subpath}
-                    ts_chunk_size = int(os.getenv("TS_CHUNK_SIZE", str(64 * 1024 * 1024)))
-                    chunk_len = min(len(concat_arr), ts_chunk_size) if ts_chunk_size > 0 else len(concat_arr)
                     spec = {
                         "driver": "zarr",
                         "kvstore": kvstore_spec,
                         "metadata": {
                             "dtype": concat_arr.dtype.str,
                             "shape": [len(concat_arr)],
-                            "chunks": [chunk_len],
+                            "chunks": [len(concat_arr)],
                             "compressor": None,
                         },
                         "create": True,
@@ -733,15 +731,13 @@ class LoggedModelCheckpoint(ModelCheckpoint):
                     kvstore_spec = {"driver": "gcs", "bucket": bucket, "path": blob_path}
                 else:
                     kvstore_spec = {"driver": "file", "path": subpath}
-                ts_chunk_size = int(os.getenv("TS_CHUNK_SIZE", str(64 * 1024 * 1024)))
-                chunk_len = min(len(concat_arr), ts_chunk_size) if ts_chunk_size > 0 else len(concat_arr)
                 spec = {
                     "driver": "zarr",
                     "kvstore": kvstore_spec,
                     "metadata": {
                         "dtype": concat_arr.dtype.str,
                         "shape": [len(concat_arr)],
-                        "chunks": [chunk_len],
+                        "chunks": [len(concat_arr)],
                         "compressor": None,
                     },
                     "create": True,

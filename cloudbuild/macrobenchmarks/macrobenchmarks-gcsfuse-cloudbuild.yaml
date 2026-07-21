@@ -12,7 +12,7 @@ substitutions:
   _GCSFUSE_SIDECAR_IMAGE: ""
   _ASYNC_CHECKPOINT: "false"
   _USE_TENSORSTORE: "false"
-  _NUM_SHARDS: "10"
+  _NUM_SHARDS: "20"
   _USE_LUSTRE: "false"
   _LUSTRE_INSTANCE: ""
   _LUSTRE_IP: ""
