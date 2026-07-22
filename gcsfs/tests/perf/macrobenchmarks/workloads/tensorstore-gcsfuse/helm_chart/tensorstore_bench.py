@@ -166,9 +166,13 @@ def main():
                 except Exception as e:
                     print(f"Warning: Failed to clean up existing path {target_dir}: {e}")
 
-            # Generate data
-            print("Generating random numpy array...")
-            data_to_write = np.random.randn(*shape).astype(dtype)
+            # Generate data fast using a tiled 16MB random float32 buffer (sub-second)
+            print("Generating data using fast tiled random float32 buffer...")
+            buf_size_elements = 4 * 1024 * 1024  # 16 MB buffer (4M float32 elements)
+            random_buf = np.random.default_rng().random(buf_size_elements, dtype=dtype)
+            total_elements = int(np.prod(shape))
+            repeats = total_elements // buf_size_elements
+            data_to_write = np.tile(random_buf, repeats).reshape(shape)
 
             # 1. Write Benchmark
             print(f"Writing via TensorStore ({array_driver} on {kvstore_driver})...")
@@ -185,8 +189,13 @@ def main():
                 "delete_existing": True,
             }
 
+            ts_context = ts.Context({
+                "file_io_concurrency": {"limit": 64},
+                "data_copy_concurrency": {"limit": 32},
+            })
+
             start_time = time.perf_counter()
-            dataset = ts.open(ts_spec).result()
+            dataset = ts.open(ts_spec, context=ts_context).result()
             write_future = dataset.write(data_to_write)
             write_future.result()  # Wait for completion
             write_time = time.perf_counter() - start_time
@@ -209,7 +218,7 @@ def main():
         }
 
         start_time = time.perf_counter()
-        read_dataset = ts.open(read_spec).result()
+        read_dataset = ts.open(read_spec, context=ts_context).result()
         read_future = read_dataset.read()
         read_data = read_future.result()
         read_time = time.perf_counter() - start_time
@@ -220,7 +229,7 @@ def main():
         # 3. Hot Read Benchmark (Second read pass)
         print(f"Reading back via TensorStore (Hot Read) ({array_driver} on {kvstore_driver})...")
         start_time = time.perf_counter()
-        hot_read_dataset = ts.open(read_spec).result()
+        hot_read_dataset = ts.open(read_spec, context=ts_context).result()
         hot_read_future = hot_read_dataset.read()
         hot_read_data = hot_read_future.result()
         hot_read_time = time.perf_counter() - start_time
