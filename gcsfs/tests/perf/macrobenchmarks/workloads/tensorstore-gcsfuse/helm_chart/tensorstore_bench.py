@@ -203,9 +203,15 @@ def main():
     num_workers = max(1, args.num_workers)
     target_dir = os.path.join(args.mount_path, args.dataset_name)
 
+    partition_dim = 1
     if num_workers > 1:
         worker_shape = list(shape)
-        worker_shape[1] = max(1, shape[1] // num_workers)
+        if shape[0] % num_workers == 0 and (shape[0] // num_workers) >= chunks[0]:
+            worker_shape[0] = shape[0] // num_workers
+            partition_dim = 0
+        else:
+            worker_shape[1] = max(1, shape[1] // num_workers)
+            partition_dim = 1
     else:
         worker_shape = shape
 
