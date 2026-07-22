@@ -184,7 +184,7 @@ def main():
             }
 
             ts_context = ts.Context({
-                "file_io_concurrency": {"limit": 64},
+                "file_io_concurrency": {"limit": 16},
                 "data_copy_concurrency": {"limit": 32},
             })
 
