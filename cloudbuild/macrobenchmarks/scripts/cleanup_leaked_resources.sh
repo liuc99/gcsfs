@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cleanup-leaked-resources: reap clusters and checkpoint buckets left behind by
 # builds that have already ended, without touching resources that might belong
-# to a build still in flight.
+# to a build still in flight or explicit persistent/reused resources.
 
 if [ -f "/workspace/build_vars.env" ]; then
   source "/workspace/build_vars.env"
@@ -16,11 +16,10 @@ THRESHOLD=21600
 CLUSTERS=$(gcloud container clusters list --project="${PROJECT_ID}" --filter="name~'${_INFRA_PREFIX}-gke-'" --format="value(name,location,createTime)")
 while read -r name location create_time; do
   if [ -z "$name" ]; then continue; fi
-  if [[ "$name" =~ persistent ]]; then continue; fi
   if [ "${_DELETE_CLUSTER:-true}" = "false" ] || [ "${IS_USER_CLUSTER:-false}" = "true" ] || [ -n "${_CLUSTER_NAME:-}" ]; then
     TARGET_CLUSTER="${CLUSTER_NAME:-${_CLUSTER_NAME:-}}"
     if [ -n "$TARGET_CLUSTER" ] && [ "$name" = "$TARGET_CLUSTER" ]; then
-      echo "Skipping persistent/reused cluster $name (_DELETE_CLUSTER=${_DELETE_CLUSTER:-false})"
+      echo "Skipping explicit target/reused cluster $name (_DELETE_CLUSTER=${_DELETE_CLUSTER:-false})"
       continue
     fi
   fi
@@ -54,7 +53,13 @@ done <<< "$BUCKETS"
 SUBNETS=$(gcloud compute networks subnets list --project="${PROJECT_ID}" --filter="name~'${_INFRA_PREFIX}-subnet-'" --format="value(name,region,creationTimestamp)")
 while read -r name region creation_time; do
   if [ -z "$name" ]; then continue; fi
-  if [[ "$name" =~ persistent ]]; then continue; fi
+  if [ "${IS_EXISTING_NETWORK:-false}" = "true" ] || [ -n "${_SUBNET_NAME:-}" ]; then
+    TARGET_SUBNET="${SUBNET_NAME:-${_SUBNET_NAME:-}}"
+    if [ -n "$TARGET_SUBNET" ] && [ "$name" = "$TARGET_SUBNET" ]; then
+      echo "Skipping explicit target/reused subnet $name"
+      continue
+    fi
+  fi
   CREATED=$(date -d "$creation_time" +%s 2>/dev/null) || continue
   AGE=$((CURRENT_TIME - CREATED))
   if [ "$AGE" -gt "$THRESHOLD" ]; then
@@ -68,7 +73,13 @@ done <<< "$SUBNETS"
 NETWORKS=$(gcloud compute networks list --project="${PROJECT_ID}" --filter="name~'${_INFRA_PREFIX}-net-'" --format="value(name,creationTimestamp)")
 while read -r name creation_time; do
   if [ -z "$name" ]; then continue; fi
-  if [[ "$name" =~ persistent ]]; then continue; fi
+  if [ "${IS_EXISTING_NETWORK:-false}" = "true" ] || [ -n "${_NETWORK_NAME:-}" ]; then
+    TARGET_NETWORK="${NETWORK_NAME:-${_NETWORK_NAME:-}}"
+    if [ -n "$TARGET_NETWORK" ] && [ "$name" = "$TARGET_NETWORK" ]; then
+      echo "Skipping explicit target/reused network $name"
+      continue
+    fi
+  fi
   CREATED=$(date -d "$creation_time" +%s 2>/dev/null) || continue
   AGE=$((CURRENT_TIME - CREATED))
   if [ "$AGE" -gt "$THRESHOLD" ]; then
