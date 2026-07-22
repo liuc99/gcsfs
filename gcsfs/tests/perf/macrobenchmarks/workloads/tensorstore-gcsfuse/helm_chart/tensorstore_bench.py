@@ -73,6 +73,18 @@ def parse_args(args=None):
         default=True,
         help="Verify read data matches written data",
     )
+    parser.add_argument(
+        "--read-only",
+        action="store_true",
+        default=False,
+        help="Skip writing and only benchmark reading an existing dataset",
+    )
+    parser.add_argument(
+        "--clear-cache",
+        action="store_true",
+        default=False,
+        help="Attempt to drop Linux page caches before reading",
+    )
     return parser.parse_args(args)
 
 
@@ -146,43 +158,50 @@ def main():
     for i in range(args.iterations):
         print(f"\n--- Iteration {i+1}/{args.iterations} ---")
         
-        # Clean up existing directory if present on local filesystem
-        if kvstore_driver == "file" and os.path.exists(target_dir):
-            try:
-                shutil.rmtree(target_dir)
-            except Exception as e:
-                print(f"Warning: Failed to clean up existing path {target_dir}: {e}")
+        if not args.read_only:
+            # Clean up existing directory if present on local filesystem
+            if kvstore_driver == "file" and os.path.exists(target_dir):
+                try:
+                    shutil.rmtree(target_dir)
+                except Exception as e:
+                    print(f"Warning: Failed to clean up existing path {target_dir}: {e}")
 
-        # Generate data
-        print("Generating random numpy array...")
-        data_to_write = np.random.randn(*shape).astype(dtype)
+            # Generate data
+            print("Generating random numpy array...")
+            data_to_write = np.random.randn(*shape).astype(dtype)
 
-        # 1. Write Benchmark
-        print(f"Writing via TensorStore ({array_driver} on {kvstore_driver})...")
-        ts_spec = {
-            "driver": array_driver,
-            "kvstore": kvstore_spec,
-            "metadata": {
-                "dtype": f"<{dtype.str[1:]}" if dtype.byteorder == "=" else dtype.str,
-                "shape": shape,
-                "chunks": chunks,
-                "compressor": None,
-            },
-            "create": True,
-            "delete_existing": True,
-        }
+            # 1. Write Benchmark
+            print(f"Writing via TensorStore ({array_driver} on {kvstore_driver})...")
+            ts_spec = {
+                "driver": array_driver,
+                "kvstore": kvstore_spec,
+                "metadata": {
+                    "dtype": f"<{dtype.str[1:]}" if dtype.byteorder == "=" else dtype.str,
+                    "shape": shape,
+                    "chunks": chunks,
+                    "compressor": None,
+                },
+                "create": True,
+                "delete_existing": True,
+            }
 
-        start_time = time.perf_counter()
-        dataset = ts.open(ts_spec).result()
-        write_future = dataset.write(data_to_write)
-        write_future.result()  # Wait for completion
-        write_time = time.perf_counter() - start_time
-        write_throughput = size_mb / write_time
+            start_time = time.perf_counter()
+            dataset = ts.open(ts_spec).result()
+            write_future = dataset.write(data_to_write)
+            write_future.result()  # Wait for completion
+            write_time = time.perf_counter() - start_time
+            write_throughput = size_mb / write_time
 
-        print(f"[BENCHMARK] Write finished in {write_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {write_throughput:.2f} MB/s")
+            print(f"[BENCHMARK] Write finished in {write_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {write_throughput:.2f} MB/s")
+        else:
+            data_to_write = None
 
-        # 2. Read Benchmark
-        print(f"Reading back via TensorStore ({array_driver} on {kvstore_driver})...")
+        # Attempt to drop page cache before read
+        print("Attempting to drop Linux page cache (sync; echo 3 > /proc/sys/vm/drop_caches)...")
+        os.system("sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true")
+
+        # 2. Cold Read Benchmark
+        print(f"Reading back via TensorStore (Cold Read) ({array_driver} on {kvstore_driver})...")
         read_spec = {
             "driver": array_driver,
             "kvstore": kvstore_spec,
@@ -196,10 +215,21 @@ def main():
         read_time = time.perf_counter() - start_time
         read_throughput = size_mb / read_time
 
-        print(f"[BENCHMARK] Read finished in {read_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {read_throughput:.2f} MB/s")
+        print(f"[BENCHMARK] Cold Read finished in {read_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {read_throughput:.2f} MB/s")
 
-        # 3. Verification
-        if args.verify:
+        # 3. Hot Read Benchmark (Second read pass)
+        print(f"Reading back via TensorStore (Hot Read) ({array_driver} on {kvstore_driver})...")
+        start_time = time.perf_counter()
+        hot_read_dataset = ts.open(read_spec).result()
+        hot_read_future = hot_read_dataset.read()
+        hot_read_data = hot_read_future.result()
+        hot_read_time = time.perf_counter() - start_time
+        hot_read_throughput = size_mb / hot_read_time
+
+        print(f"[BENCHMARK] Hot Read finished in {hot_read_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {hot_read_throughput:.2f} MB/s")
+
+        # 4. Verification
+        if args.verify and data_to_write is not None:
             print("Verifying data integrity...")
             if np.array_equal(data_to_write, read_data):
                 print(" SUCCESS: Read data matches written data exactly.")
