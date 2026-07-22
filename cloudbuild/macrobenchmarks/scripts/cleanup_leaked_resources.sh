@@ -3,6 +3,10 @@
 # builds that have already ended, without touching resources that might belong
 # to a build still in flight.
 
+if [ -f "/workspace/build_vars.env" ]; then
+  source "/workspace/build_vars.env"
+fi
+
 CURRENT_TIME=$(date +%s)
 # Must be >= the build `timeout` (21600s). A concurrently-running build's
 # cluster/bucket is always younger than that build's own elapsed time (and thus
@@ -13,6 +17,13 @@ CLUSTERS=$(gcloud container clusters list --project="${PROJECT_ID}" --filter="na
 while read -r name location create_time; do
   if [ -z "$name" ]; then continue; fi
   if [[ "$name" =~ persistent ]]; then continue; fi
+  if [ "${_DELETE_CLUSTER:-true}" = "false" ] || [ "${IS_USER_CLUSTER:-false}" = "true" ] || [ -n "${_CLUSTER_NAME:-}" ]; then
+    TARGET_CLUSTER="${CLUSTER_NAME:-${_CLUSTER_NAME:-}}"
+    if [ -n "$TARGET_CLUSTER" ] && [ "$name" = "$TARGET_CLUSTER" ]; then
+      echo "Skipping persistent/reused cluster $name (_DELETE_CLUSTER=${_DELETE_CLUSTER:-false})"
+      continue
+    fi
+  fi
   # Skip rather than mis-compute if the create time is empty/unparseable (e.g. a
   # gcloud field-name change): a bad date would otherwise make AGE garbage.
   CREATED=$(date -d "$create_time" +%s 2>/dev/null) || continue

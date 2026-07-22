@@ -102,6 +102,8 @@ steps:
     env:
       - "PROJECT_ID=${PROJECT_ID}"
       - "_INFRA_PREFIX=${_INFRA_PREFIX}"
+      - "_CLUSTER_NAME=${_CLUSTER_NAME}"
+      - "_DELETE_CLUSTER=${_DELETE_CLUSTER}"
     args: ["cloudbuild/macrobenchmarks/scripts/cleanup_leaked_resources.sh"]
     waitFor: ["init-variables"]
 
