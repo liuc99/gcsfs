@@ -12,6 +12,7 @@ THRESHOLD=21600
 CLUSTERS=$(gcloud container clusters list --project="${PROJECT_ID}" --filter="name~'${_INFRA_PREFIX}-gke-'" --format="value(name,location,createTime)")
 while read -r name location create_time; do
   if [ -z "$name" ]; then continue; fi
+  if [[ "$name" =~ persistent ]]; then continue; fi
   # Skip rather than mis-compute if the create time is empty/unparseable (e.g. a
   # gcloud field-name change): a bad date would otherwise make AGE garbage.
   CREATED=$(date -d "$create_time" +%s 2>/dev/null) || continue
@@ -42,6 +43,7 @@ done <<< "$BUCKETS"
 SUBNETS=$(gcloud compute networks subnets list --project="${PROJECT_ID}" --filter="name~'${_INFRA_PREFIX}-subnet-'" --format="value(name,region,creationTimestamp)")
 while read -r name region creation_time; do
   if [ -z "$name" ]; then continue; fi
+  if [[ "$name" =~ persistent ]]; then continue; fi
   CREATED=$(date -d "$creation_time" +%s 2>/dev/null) || continue
   AGE=$((CURRENT_TIME - CREATED))
   if [ "$AGE" -gt "$THRESHOLD" ]; then
@@ -55,6 +57,7 @@ done <<< "$SUBNETS"
 NETWORKS=$(gcloud compute networks list --project="${PROJECT_ID}" --filter="name~'${_INFRA_PREFIX}-net-'" --format="value(name,creationTimestamp)")
 while read -r name creation_time; do
   if [ -z "$name" ]; then continue; fi
+  if [[ "$name" =~ persistent ]]; then continue; fi
   CREATED=$(date -d "$creation_time" +%s 2>/dev/null) || continue
   AGE=$((CURRENT_TIME - CREATED))
   if [ "$AGE" -gt "$THRESHOLD" ]; then
