@@ -166,6 +166,7 @@ def main():
                 "dtype": f"<{dtype.str[1:]}" if dtype.byteorder == "=" else dtype.str,
                 "shape": shape,
                 "chunks": chunks,
+                "compressor": None,
             },
             "create": True,
             "delete_existing": True,
