@@ -79,12 +79,6 @@ def parse_args(args=None):
         default=False,
         help="Skip writing and only benchmark reading an existing dataset",
     )
-    parser.add_argument(
-        "--clear-cache",
-        action="store_true",
-        default=False,
-        help="Attempt to drop Linux page caches before reading",
-    )
     return parser.parse_args(args)
 
 
@@ -205,12 +199,8 @@ def main():
         else:
             data_to_write = None
 
-        # Attempt to drop page cache before read
-        print("Attempting to drop Linux page cache (sync; echo 3 > /proc/sys/vm/drop_caches)...")
-        os.system("sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true")
-
-        # 2. Cold Read Benchmark
-        print(f"Reading back via TensorStore (Cold Read) ({array_driver} on {kvstore_driver})...")
+        # 2. Read Benchmark
+        print(f"Reading back via TensorStore ({array_driver} on {kvstore_driver})...")
         read_spec = {
             "driver": array_driver,
             "kvstore": kvstore_spec,
@@ -224,18 +214,7 @@ def main():
         read_time = time.perf_counter() - start_time
         read_throughput = size_mb / read_time
 
-        print(f"[BENCHMARK] Cold Read finished in {read_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {read_throughput:.2f} MB/s")
-
-        # 3. Hot Read Benchmark (Second read pass)
-        print(f"Reading back via TensorStore (Hot Read) ({array_driver} on {kvstore_driver})...")
-        start_time = time.perf_counter()
-        hot_read_dataset = ts.open(read_spec, context=ts_context).result()
-        hot_read_future = hot_read_dataset.read()
-        hot_read_data = hot_read_future.result()
-        hot_read_time = time.perf_counter() - start_time
-        hot_read_throughput = size_mb / hot_read_time
-
-        print(f"[BENCHMARK] Hot Read finished in {hot_read_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {hot_read_throughput:.2f} MB/s")
+        print(f"[BENCHMARK] Read finished in {read_time:.4f} sec | Size: {size_bytes} bytes ({size_mb:.2f} MB / {size_mb/1024:.2f} GB) | Throughput: {read_throughput:.2f} MB/s")
 
         # 4. Verification
         if args.verify and data_to_write is not None:
