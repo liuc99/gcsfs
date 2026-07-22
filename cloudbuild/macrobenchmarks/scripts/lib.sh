@@ -73,6 +73,9 @@ shared_workload_helm_args() {
       gcsfuse_mount_opts="${gcsfuse_mount_opts},write:enable-streaming-writes:false"
     fi
   fi
+  if [[ "$gcsfuse_mount_opts" != *"prometheus-port"* ]]; then
+    gcsfuse_mount_opts="${gcsfuse_mount_opts},prometheus-port=8080"
+  fi
   # Helm's --set / --set-string parses commas as value separators unless escaped with \,
   local helm_gcsfuse_mount_opts="${gcsfuse_mount_opts//,/\\,}"
   local helm_additional_ckpt_paths="${_ADDITIONAL_CHECKPOINT_PATHS//,/\\,}"
