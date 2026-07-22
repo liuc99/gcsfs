@@ -165,8 +165,8 @@ def main():
             buf_size_elements = 4 * 1024 * 1024  # 16 MB buffer (4M float32 elements)
             random_buf = np.random.default_rng().random(buf_size_elements, dtype=dtype)
             total_elements = int(np.prod(shape))
-            repeats = total_elements // buf_size_elements
-            data_to_write = np.tile(random_buf, repeats).reshape(shape)
+            repeats = (total_elements + buf_size_elements - 1) // buf_size_elements
+            data_to_write = np.tile(random_buf, repeats)[:total_elements].reshape(shape)
 
             # 1. Write Benchmark
             print(f"Writing via TensorStore ({array_driver} on {kvstore_driver})...")
