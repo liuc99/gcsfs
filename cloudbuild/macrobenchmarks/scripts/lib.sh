@@ -68,6 +68,9 @@ shared_workload_helm_args() {
     if [[ "$gcsfuse_mount_opts" != *"write:enable-streaming-writes"* ]]; then
       gcsfuse_mount_opts="${gcsfuse_mount_opts},write:enable-streaming-writes:true"
     fi
+    if [[ "$gcsfuse_mount_opts" != *"write:global-max-blocks"* ]]; then
+      gcsfuse_mount_opts="${gcsfuse_mount_opts},write:global-max-blocks:-1"
+    fi
   else
     if [[ "$gcsfuse_mount_opts" != *"write:enable-streaming-writes"* ]]; then
       gcsfuse_mount_opts="${gcsfuse_mount_opts},write:enable-streaming-writes:false"
