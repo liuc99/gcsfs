@@ -15,6 +15,7 @@ workload:
   ranksPerNode: 1
   singlePodPerNode: true
   requirements: ""
+  numWorkers: 8
   tensorstoreShape: "1000,1000,100"
   tensorstoreChunks: "100,100,100"
   tensorstoreDtype: "float32"

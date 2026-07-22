@@ -76,6 +76,8 @@ spec:
                 value: "{{ $root.Values.gcsfs.ckptWritePath }}"
               - name: REQUIREMENTS
                 value: "{{ $root.Values.workload.requirements }}"
+              - name: NUM_WORKERS
+                value: "{{ $root.Values.workload.numWorkers }}"
               - name: TENSORSTORE_SHAPE
                 value: "{{ $root.Values.workload.tensorstoreShape }}"
               - name: TENSORSTORE_CHUNKS

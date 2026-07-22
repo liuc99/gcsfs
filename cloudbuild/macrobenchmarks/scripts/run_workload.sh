@@ -44,7 +44,8 @@ helm install "$RUN_ID" "$CHART" -f "$CHART/values_base.yaml" \
   --set workload.perDeviceBatch="${_PER_DEVICE_BATCH}" \
   --set workload.gradAccum="${_GRAD_ACCUM}" \
   --set workload.dataloaderWorkers="${_DATALOADER_WORKERS}" \
-  --set workload.simulatedStepComputeSeconds="${_SIMULATED_STEP_COMPUTE_SECONDS}"
+  --set workload.simulatedStepComputeSeconds="${_SIMULATED_STEP_COMPUTE_SECONDS}" \
+  --set workload.numWorkers="${_NUM_WORKERS:-8}"
 if ! wait_for_jobset "$RUN_ID" run-workload; then
   exit 1
 fi
