@@ -33,6 +33,8 @@ DTYPE="${TENSORSTORE_DTYPE:-float32}"
 DRIVER="${TENSORSTORE_DRIVER:-zarr}"
 ITERATIONS="${TENSORSTORE_ITERATIONS:-1}"
 
+WORKERS="${NUM_WORKERS:-8}"
+
 python3 -u /workload/tensorstore_bench.py \
   --mount-path "$MOUNT_PATH" \
   --shape "$SHAPE" \
@@ -40,6 +42,7 @@ python3 -u /workload/tensorstore_bench.py \
   --dtype "$DTYPE" \
   --driver "$DRIVER" \
   --iterations "$ITERATIONS" \
+  --num-workers "$WORKERS" \
   --verify
 
 echo "TensorStore + GCSFuse benchmark run completed."
