@@ -202,32 +202,39 @@ def main():
 
     num_workers = max(1, args.num_workers)
     target_dir = os.path.join(args.mount_path, args.dataset_name)
-    num_elements = int(np.prod(shape))
-    size_bytes = num_elements * dtype.itemsize
-    size_mb = size_bytes / (1024 * 1024)
-    total_size_mb = size_mb * num_workers
+
+    if num_workers > 1:
+        worker_shape = list(shape)
+        worker_shape[1] = max(1, shape[1] // num_workers)
+    else:
+        worker_shape = shape
+
+    worker_elements = int(np.prod(worker_shape))
+    worker_size_mb = (worker_elements * dtype.itemsize) / (1024 * 1024)
+    total_size_mb = worker_size_mb * num_workers
 
     print(f"==================================================")
     print(f" TensorStore + GCSFuse Benchmark")
     print(f"==================================================")
     print(f" Mount Path   : {args.mount_path}")
     print(f" Target Dir   : {target_dir}")
-    print(f" Array Shape  : {shape}")
+    print(f" Global Shape : {shape}")
+    print(f" Worker Shape : {worker_shape}")
     print(f" Chunk Shape  : {chunks}")
     print(f" Data Type    : {dtype.name}")
     print(f" Workers      : {num_workers}")
-    print(f" Per-Worker   : {size_mb:.2f} MB")
+    print(f" Per-Worker   : {worker_size_mb:.2f} MB")
     print(f" Aggregate    : {total_size_mb:.2f} MB ({total_size_mb/1024:.2f} GB)")
     print(f"==================================================")
 
     if num_workers == 1:
-        run_worker(0, 1, shape, chunks, dtype, array_driver, kvstore_driver, args)
+        run_worker(0, 1, worker_shape, chunks, dtype, array_driver, kvstore_driver, args)
     else:
         print(f"Launching {num_workers} concurrent worker processes...")
         with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
             futures = [
                 executor.submit(
-                    run_worker, w, num_workers, shape, chunks, dtype, array_driver, kvstore_driver, args
+                    run_worker, w, num_workers, worker_shape, chunks, dtype, array_driver, kvstore_driver, args
                 )
                 for w in range(num_workers)
             ]
