@@ -138,7 +138,7 @@ def run_worker(worker_id, num_workers, shape, chunks, dtype, array_driver, kvsto
                 "delete_existing": True,
             }
             ts_context = ts.Context({
-                "file_io_concurrency": {"limit": 16},
+                "file_io_concurrency": {"limit": 8},
                 "data_copy_concurrency": {"limit": 32},
             })
 
