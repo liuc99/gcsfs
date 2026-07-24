@@ -231,32 +231,32 @@ def main():
     partition_dim = 1
     if args.per_worker_shape:
         worker_shape = shape
-        global_shape = list(shape)
-        global_shape[0] = shape[0] * total_global_workers
-    elif total_global_workers > 1:
-        global_shape = shape
+        node_shape = list(shape)
+        node_shape[0] = shape[0] * num_workers
+    elif num_workers > 1:
+        node_shape = shape
         worker_shape = list(shape)
-        if shape[0] % total_global_workers == 0 and (shape[0] // total_global_workers) >= chunks[0]:
-            worker_shape[0] = shape[0] // total_global_workers
+        if shape[0] % num_workers == 0 and (shape[0] // num_workers) >= chunks[0]:
+            worker_shape[0] = shape[0] // num_workers
             partition_dim = 0
         else:
-            worker_shape[1] = max(1, shape[1] // total_global_workers)
+            worker_shape[1] = max(1, shape[1] // num_workers)
             partition_dim = 1
     else:
-        global_shape = shape
+        node_shape = shape
         worker_shape = shape
 
     worker_elements = int(np.prod(worker_shape))
     worker_size_mb = (worker_elements * dtype.itemsize) / (1024 * 1024)
     node_size_mb = worker_size_mb * num_workers
-    total_cluster_size_mb = worker_size_mb * total_global_workers
+    total_cluster_size_mb = node_size_mb * num_nodes
 
     print(f"==================================================")
     print(f" TensorStore + GCSFuse Benchmark")
     print(f"==================================================")
     print(f" Mount Path          : {args.mount_path}")
     print(f" Target Dir          : {target_dir}")
-    print(f" Global Shape        : {global_shape}")
+    print(f" Node Shape          : {node_shape}")
     print(f" Worker Shape        : {worker_shape}")
     print(f" Chunk Shape         : {chunks}")
     print(f" Data Type           : {dtype.name}")
