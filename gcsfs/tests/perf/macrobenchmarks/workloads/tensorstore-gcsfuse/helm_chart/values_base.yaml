@@ -21,6 +21,7 @@ workload:
   tensorstoreDtype: "float32"
   tensorstoreDriver: "zarr"
   tensorstoreIterations: 1
+  tensorstorePerWorkerShape: "false"
   envs:
     - name: LOG_LEVEL
       value: INFO

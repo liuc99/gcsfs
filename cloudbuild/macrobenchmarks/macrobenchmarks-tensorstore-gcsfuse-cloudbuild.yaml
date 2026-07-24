@@ -51,6 +51,8 @@ substitutions:
   _TENSORSTORE_DTYPE: "float32"
   _TENSORSTORE_DRIVER: "zarr"
   _TENSORSTORE_ITERATIONS: "1"
+  _NUM_WORKERS: "8"
+  _TENSORSTORE_PER_WORKER_SHAPE: "false"
 
 steps:
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -194,6 +196,8 @@ steps:
       - "_TENSORSTORE_DTYPE=${_TENSORSTORE_DTYPE}"
       - "_TENSORSTORE_DRIVER=${_TENSORSTORE_DRIVER}"
       - "_TENSORSTORE_ITERATIONS=${_TENSORSTORE_ITERATIONS}"
+      - "_NUM_WORKERS=${_NUM_WORKERS}"
+      - "_TENSORSTORE_PER_WORKER_SHAPE=${_TENSORSTORE_PER_WORKER_SHAPE}"
     args: ["cloudbuild/macrobenchmarks/scripts/run_workload.sh"]
     waitFor: ["create-cluster", "create-buckets"]
 

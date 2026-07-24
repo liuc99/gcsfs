@@ -85,11 +85,29 @@ def parse_args(args=None):
         default=int(os.environ.get("TENSORSTORE_NUM_WORKERS", "1")),
         help="Number of concurrent worker processes (default: 1)",
     )
+    parser.add_argument(
+        "--node-rank",
+        type=int,
+        default=int(os.environ.get("NODE_RANK", os.environ.get("JOB_COMPLETION_INDEX", "0"))),
+        help="Rank of the current node (0-indexed)",
+    )
+    parser.add_argument(
+        "--num-nodes",
+        type=int,
+        default=int(os.environ.get("NUM_NODES", os.environ.get("NNODES", "1"))),
+        help="Total number of nodes participating in the benchmark",
+    )
+    parser.add_argument(
+        "--per-worker-shape",
+        action="store_true",
+        default=os.environ.get("TENSORSTORE_PER_WORKER_SHAPE", "false").lower() in ("true", "1"),
+        help="Treat --shape as the per-worker shape rather than partitioning global shape across workers",
+    )
     return parser.parse_args(args)
 
 
-def run_worker(worker_id, num_workers, shape, chunks, dtype, array_driver, kvstore_driver, args):
-    dataset_name = f"{args.dataset_name}_rank_{worker_id}" if num_workers > 1 else args.dataset_name
+def run_worker(worker_id, global_worker_id, total_global_workers, node_rank, num_nodes, shape, chunks, dtype, array_driver, kvstore_driver, args):
+    dataset_name = f"{args.dataset_name}_rank_{global_worker_id}" if total_global_workers > 1 else args.dataset_name
     target_dir = os.path.join(args.mount_path, dataset_name)
     num_elements = int(np.prod(shape))
     size_bytes = num_elements * dtype.itemsize
@@ -117,7 +135,7 @@ def run_worker(worker_id, num_workers, shape, chunks, dtype, array_driver, kvsto
                 try:
                     shutil.rmtree(target_dir)
                 except Exception as e:
-                    print(f"[Worker {worker_id}] Warning: Failed to clean up {target_dir}: {e}")
+                    print(f"[Node {node_rank} | Worker {worker_id} (Global {global_worker_id})] Warning: Failed to clean up {target_dir}: {e}")
 
             buf_size_elements = 4 * 1024 * 1024
             random_buf = np.random.default_rng().random(buf_size_elements, dtype=dtype)
@@ -147,10 +165,14 @@ def run_worker(worker_id, num_workers, shape, chunks, dtype, array_driver, kvsto
             write_future = dataset.write(data_to_write)
             write_future.result()
             w_time = time.perf_counter() - w_start
-            print(f"[Worker {worker_id}] Write finished in {w_time:.4f} sec | Throughput: {size_mb/w_time:.2f} MB/s")
+            print(f"[Node {node_rank} | Worker {worker_id} (Global {global_worker_id})] Write finished in {w_time:.4f} sec | Throughput: {size_mb/w_time:.2f} MB/s")
             results["write_time"] = w_time
         else:
             data_to_write = None
+            ts_context = ts.Context({
+                "file_io_concurrency": {"limit": 8},
+                "data_copy_concurrency": {"limit": 32},
+            })
 
         read_spec = {"driver": array_driver, "kvstore": kvstore_spec, "open": True}
         r_start = time.perf_counter()
@@ -158,12 +180,12 @@ def run_worker(worker_id, num_workers, shape, chunks, dtype, array_driver, kvsto
         read_future = read_dataset.read()
         read_data = read_future.result()
         r_time = time.perf_counter() - r_start
-        print(f"[Worker {worker_id}] Read finished in {r_time:.4f} sec | Throughput: {size_mb/r_time:.2f} MB/s")
+        print(f"[Node {node_rank} | Worker {worker_id} (Global {global_worker_id})] Read finished in {r_time:.4f} sec | Throughput: {size_mb/r_time:.2f} MB/s")
         results["read_time"] = r_time
 
         if args.verify and data_to_write is not None:
             if not np.array_equal(data_to_write, read_data):
-                print(f"[Worker {worker_id}] FAILURE: Read data mismatch!", file=sys.stderr)
+                print(f"[Node {node_rank} | Worker {worker_id} (Global {global_worker_id})] FAILURE: Read data mismatch!", file=sys.stderr)
                 sys.exit(1)
 
         slice_shape = [min(dim, chunk) for dim, chunk in zip(shape, chunks)]
@@ -201,62 +223,82 @@ def main():
             kvstore_driver = "file"
 
     num_workers = max(1, args.num_workers)
+    node_rank = max(0, args.node_rank)
+    num_nodes = max(1, args.num_nodes)
+    total_global_workers = num_nodes * num_workers
     target_dir = os.path.join(args.mount_path, args.dataset_name)
 
     partition_dim = 1
-    if num_workers > 1:
+    if args.per_worker_shape:
+        worker_shape = shape
+        global_shape = list(shape)
+        global_shape[0] = shape[0] * total_global_workers
+    elif total_global_workers > 1:
+        global_shape = shape
         worker_shape = list(shape)
-        if shape[0] % num_workers == 0 and (shape[0] // num_workers) >= chunks[0]:
-            worker_shape[0] = shape[0] // num_workers
+        if shape[0] % total_global_workers == 0 and (shape[0] // total_global_workers) >= chunks[0]:
+            worker_shape[0] = shape[0] // total_global_workers
             partition_dim = 0
         else:
-            worker_shape[1] = max(1, shape[1] // num_workers)
+            worker_shape[1] = max(1, shape[1] // total_global_workers)
             partition_dim = 1
     else:
+        global_shape = shape
         worker_shape = shape
 
     worker_elements = int(np.prod(worker_shape))
     worker_size_mb = (worker_elements * dtype.itemsize) / (1024 * 1024)
-    total_size_mb = worker_size_mb * num_workers
+    node_size_mb = worker_size_mb * num_workers
+    total_cluster_size_mb = worker_size_mb * total_global_workers
 
     print(f"==================================================")
     print(f" TensorStore + GCSFuse Benchmark")
     print(f"==================================================")
-    print(f" Mount Path   : {args.mount_path}")
-    print(f" Target Dir   : {target_dir}")
-    print(f" Global Shape : {shape}")
-    print(f" Worker Shape : {worker_shape}")
-    print(f" Chunk Shape  : {chunks}")
-    print(f" Data Type    : {dtype.name}")
-    print(f" Workers      : {num_workers}")
-    print(f" Per-Worker   : {worker_size_mb:.2f} MB")
-    print(f" Aggregate    : {total_size_mb:.2f} MB ({total_size_mb/1024:.2f} GB)")
+    print(f" Mount Path          : {args.mount_path}")
+    print(f" Target Dir          : {target_dir}")
+    print(f" Global Shape        : {global_shape}")
+    print(f" Worker Shape        : {worker_shape}")
+    print(f" Chunk Shape         : {chunks}")
+    print(f" Data Type           : {dtype.name}")
+    print(f" Node Rank           : {node_rank} / {num_nodes}")
+    print(f" Local Workers/Node  : {num_workers}")
+    print(f" Total Global Workers: {total_global_workers}")
+    print(f" Per-Worker Data Size: {worker_size_mb:.2f} MB")
+    print(f" Node Data Size      : {node_size_mb:.2f} MB ({node_size_mb/1024:.2f} GB)")
+    print(f" Cluster Data Size   : {total_cluster_size_mb:.2f} MB ({total_cluster_size_mb/1024:.2f} GB)")
     print(f"==================================================")
 
     if num_workers == 1:
-        run_worker(0, 1, worker_shape, chunks, dtype, array_driver, kvstore_driver, args)
+        global_worker_id = node_rank * num_workers
+        all_results = [
+            run_worker(
+                0, global_worker_id, total_global_workers, node_rank, num_nodes, worker_shape, chunks, dtype, array_driver, kvstore_driver, args
+            )
+        ]
     else:
-        print(f"Launching {num_workers} concurrent worker processes...")
+        start_gid = node_rank * num_workers
+        end_gid = start_gid + num_workers - 1
+        print(f"[Node {node_rank}] Launching {num_workers} concurrent worker processes (Global IDs {start_gid}..{end_gid})...")
         with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
             futures = [
                 executor.submit(
-                    run_worker, w, num_workers, worker_shape, chunks, dtype, array_driver, kvstore_driver, args
+                    run_worker, w, node_rank * num_workers + w, total_global_workers, node_rank, num_nodes, worker_shape, chunks, dtype, array_driver, kvstore_driver, args
                 )
                 for w in range(num_workers)
             ]
             all_results = [f.result() for f in futures]
 
-        if not args.read_only:
-            max_write_time = max(r["write_time"] for r in all_results)
-            agg_write_tp = total_size_mb / max_write_time
-            print(f"\n[BENCHMARK] Aggregate Write finished in {max_write_time:.4f} sec | Size: {total_size_mb:.2f} MB ({total_size_mb/1024:.2f} GB) | Throughput: {agg_write_tp:.2f} MB/s")
+    if not args.read_only:
+        max_write_time = max(r["write_time"] for r in all_results)
+        node_write_tp = node_size_mb / max_write_time
+        print(f"\n[BENCHMARK] [Node {node_rank}] Node Write finished in {max_write_time:.4f} sec | Size: {node_size_mb:.2f} MB ({node_size_mb/1024:.2f} GB) | Throughput: {node_write_tp:.2f} MB/s")
 
-        max_read_time = max(r["read_time"] for r in all_results)
-        agg_read_tp = total_size_mb / max_read_time
-        print(f"[BENCHMARK] Aggregate Read finished in {max_read_time:.4f} sec | Size: {total_size_mb:.2f} MB ({total_size_mb/1024:.2f} GB) | Throughput: {agg_read_tp:.2f} MB/s")
+    max_read_time = max(r["read_time"] for r in all_results)
+    node_read_tp = node_size_mb / max_read_time
+    print(f"[BENCHMARK] [Node {node_rank}] Node Read finished in {max_read_time:.4f} sec | Size: {node_size_mb:.2f} MB ({node_size_mb/1024:.2f} GB) | Throughput: {node_read_tp:.2f} MB/s")
 
     print("\n==================================================")
-    print(" TensorStore + GCSFuse Benchmark Completed Successfully")
+    print(f" TensorStore + GCSFuse Benchmark (Node {node_rank}) Completed Successfully")
     print("==================================================")
     sys.stdout.flush()
     sys.stderr.flush()

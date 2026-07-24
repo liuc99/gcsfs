@@ -38,10 +38,20 @@ spec:
               {{- end }}
           spec:
             serviceAccountName: {{ $root.Values.serviceAccount }}
+            subdomain: "{{ .Release.Name }}"
             restartPolicy: Never
             {{- if $root.Values.nodeSelector }}
             nodeSelector:
               {{- toYaml $root.Values.nodeSelector | nindent 14 }}
+            {{- end }}
+            {{- if $root.Values.workload.singlePodPerNode }}
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      jobset.sigs.k8s.io/jobset-name: "{{ .Release.Name }}"
             {{- end }}
             volumes:
             - name: workload-configuration
@@ -72,6 +82,16 @@ spec:
               env:
               - name: JOB_TIMESTAMP
                 value: "{{ $timestamp }}"
+              - name: JOB_COMPLETION_INDEX
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+              - name: NODE_RANK
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+              - name: NNODES
+                value: "{{ $nodes }}"
               - name: CKPT_WRITE_PATH
                 value: "{{ $root.Values.gcsfs.ckptWritePath }}"
               - name: REQUIREMENTS
@@ -88,6 +108,8 @@ spec:
                 value: "{{ $root.Values.workload.tensorstoreDriver }}"
               - name: TENSORSTORE_ITERATIONS
                 value: "{{ $root.Values.workload.tensorstoreIterations }}"
+              - name: TENSORSTORE_PER_WORKER_SHAPE
+                value: "{{ $root.Values.workload.tensorstorePerWorkerShape }}"
               - name: CHECKPOINT_BUCKET
                 value: "{{ $root.Values.gcsfuse.checkpointBucket }}"
               volumeMounts:

@@ -108,6 +108,7 @@ shared_workload_helm_args() {
     --set workload.tensorstoreDtype="${_TENSORSTORE_DTYPE:-float32}"
     --set workload.tensorstoreDriver="${_TENSORSTORE_DRIVER:-zarr}"
     --set workload.tensorstoreIterations="${_TENSORSTORE_ITERATIONS:-1}"
+    --set workload.tensorstorePerWorkerShape="${_TENSORSTORE_PER_WORKER_SHAPE:-false}"
     --set "nodeSelector.cloud\.google\.com/gke-nodepool=${_MACHINE_TYPE}"
     --set serviceAccount=default
     --set gcsfuse.enabled="${_USE_GCSFUSE:-false}"

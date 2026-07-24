@@ -34,6 +34,16 @@ DRIVER="${TENSORSTORE_DRIVER:-zarr}"
 ITERATIONS="${TENSORSTORE_ITERATIONS:-1}"
 
 WORKERS="${NUM_WORKERS:-1}"
+NODE_RANK="${JOB_COMPLETION_INDEX:-${NODE_RANK:-0}}"
+NUM_NODES="${NNODES:-${NODES:-1}}"
+PER_WORKER_SHAPE="${TENSORSTORE_PER_WORKER_SHAPE:-false}"
+
+EXTRA_ARGS=()
+if [[ "$PER_WORKER_SHAPE" == "true" ]] || [[ "$PER_WORKER_SHAPE" == "1" ]]; then
+  EXTRA_ARGS+=("--per-worker-shape")
+fi
+
+echo "Node Rank: $NODE_RANK / $NUM_NODES | Local workers per node: $WORKERS"
 
 python3 -u /workload/tensorstore_bench.py \
   --mount-path "$MOUNT_PATH" \
@@ -43,6 +53,9 @@ python3 -u /workload/tensorstore_bench.py \
   --driver "$DRIVER" \
   --iterations "$ITERATIONS" \
   --num-workers "$WORKERS" \
+  --node-rank "$NODE_RANK" \
+  --num-nodes "$NUM_NODES" \
+  "${EXTRA_ARGS[@]}" \
   --verify
 
-echo "TensorStore + GCSFuse benchmark run completed."
+echo "TensorStore + GCSFuse benchmark run completed on node $NODE_RANK."
